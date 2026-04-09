@@ -12,8 +12,8 @@ import java.util.Date;
 public class JwtUtil {
 
     // Generamos una clave secreta súper segura y aleatoria para firmar los tokens
-    private static final Key SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-
+    private static final String SECRET = "EstaEsUnaClaveSecretaMuyLargaParaFiveMPanelUCPDeDaniel2026!";
+    private static final java.security.Key SECRET_KEY = io.jsonwebtoken.security.Keys.hmacShaKeyFor(SECRET.getBytes());
     // Tiempo de vida del token (1 día en milisegundos)
     private static final long EXPIRATION_TIME = 86400000;
 

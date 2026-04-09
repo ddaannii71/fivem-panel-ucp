@@ -1,0 +1,5 @@
+com\fivem\panel\mgmt_service\service\TxAdminService.class
+com\fivem\panel\mgmt_service\config\TxAdminConfig.class
+com\fivem\panel\mgmt_service\dto\KickRequest.class
+com\fivem\panel\mgmt_service\controller\MgmtController.class
+com\fivem\panel\mgmt_service\MgmtServiceApplication.class

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./mvnw spring-boot:run)",
+      "Bash(netstat -ano)",
+      "Bash(cmd.exe /c \"taskkill /PID 1688 /F\")"
+    ]
+  }
+}
