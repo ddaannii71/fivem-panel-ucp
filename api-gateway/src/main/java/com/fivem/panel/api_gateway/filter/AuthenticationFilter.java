@@ -1,7 +1,9 @@
 package com.fivem.panel.api_gateway.filter;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.http.HttpHeaders;
@@ -11,50 +13,70 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.security.Key;
+import java.util.List;
 
 @Component
 public class AuthenticationFilter implements GlobalFilter {
 
-    // TIENE QUE SER EXACTAMENTE LA MISMA CLAVE QUE PUSIMOS EN EL AUTH-SERVICE
-    private static final String SECRET = "EstaEsUnaClaveSecretaMuyLargaParaFiveMPanelUCPDeDaniel2026!";
-    private static final Key SECRET_KEY = Keys.hmacShaKeyFor(SECRET.getBytes());
+    // Rutas que no necesitan token
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/auth/"
+    );
+
+    // Rutas que además requieren rol admin o superadmin
+    // El Gateway elimina el prefijo del servicio, así que comprobamos por el nombre del servicio en la URL original
+    private static final List<String> ADMIN_SERVICES = List.of(
+            "mgmt-service"
+    );
+
+    private final Key secretKey;
+
+    public AuthenticationFilter(@Value("${jwt.secret}") String secret) {
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
-        // 1. ZONA PÚBLICA: Dejamos pasar el Login tradicional y el de Discord sin pedir
-        // Token
-        if (path.contains("/auth/") || path.contains("/oauth2/") || path.contains("/login/oauth2/")) {
+        // 1. Rutas públicas: pasan sin token
+        if (PUBLIC_PATHS.stream().anyMatch(path::contains)) {
             return chain.filter(exchange);
         }
 
-        // 2. ZONA PRIVADA: Comprobamos si nos han enseñado la "Pulsera VIP" (El header
-        // Authorization)
-        if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-            // Si no hay token, patada en la puerta (Error 401)
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
-        }
-
+        // 2. Extraer y validar el token
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            return reject(exchange, HttpStatus.UNAUTHORIZED);
         }
 
-        // 3. VALIDACIÓN: Comprobamos que el Token es real y no está caducado
-        String token = authHeader.substring(7); // Le quitamos la palabra "Bearer "
+        Claims claims;
         try {
-            Jwts.parserBuilder().setSigningKey(SECRET_KEY).build().parseClaimsJws(token);
+            claims = Jwts.parserBuilder()
+                    .setSigningKey(secretKey)
+                    .build()
+                    .parseClaimsJws(authHeader.substring(7))
+                    .getBody();
         } catch (Exception e) {
-            // Si el token es falso o caducó, patada en la puerta (Error 401)
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            return reject(exchange, HttpStatus.UNAUTHORIZED);
         }
 
-        // 4. ÉXITO: El token es válido, le dejamos pasar al microservicio
-        // correspondiente
+        // 3. RBAC: servicios de admin — comprobamos en la URL original del cliente
+        //    que incluye el prefijo del servicio (ej: /mgmt-service/...)
+        String rawPath = exchange.getRequest().getPath().value();
+        if (ADMIN_SERVICES.stream().anyMatch(rawPath::contains)) {
+            String role = claims.get("role", String.class);
+            if (role == null || (!role.equalsIgnoreCase("admin") && !role.equalsIgnoreCase("superadmin"))) {
+                return reject(exchange, HttpStatus.FORBIDDEN);
+            }
+        }
+
+        // 4. Token válido (y rol suficiente si aplica): dejar pasar
         return chain.filter(exchange);
+    }
+
+    private Mono<Void> reject(ServerWebExchange exchange, HttpStatus status) {
+        exchange.getResponse().setStatusCode(status);
+        return exchange.getResponse().setComplete();
     }
 }

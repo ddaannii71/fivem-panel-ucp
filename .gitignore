@@ -1,0 +1,9 @@
+# Secretos — nunca subir a Git
+.env
+
+# Compilados Maven
+**/target/
+
+# IDE
+.idea/
+*.iml

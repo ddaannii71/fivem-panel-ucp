@@ -1,8 +1,10 @@
 package com.fivem.panel.auth_service.security;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -11,20 +13,58 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    // Generamos una clave secreta súper segura y aleatoria para firmar los tokens
-    private static final String SECRET = "EstaEsUnaClaveSecretaMuyLargaParaFiveMPanelUCPDeDaniel2026!";
-    private static final java.security.Key SECRET_KEY = io.jsonwebtoken.security.Keys.hmacShaKeyFor(SECRET.getBytes());
-    // Tiempo de vida del token (1 día en milisegundos)
-    private static final long EXPIRATION_TIME = 86400000;
+    private static final long EXPIRATION_TIME = 86400000; // 24 horas
 
-    // Método que fabrica la "pulsera VIP"
-    public String generateToken(String identifier, String role) {
+    private final Key signingKey;
+
+    public JwtUtil(@Value("${jwt.secret}") String secret) {
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes());
+    }
+
+    /**
+     * Genera un token JWT con el sujeto (license o discord:ID) y el rol del usuario.
+     */
+    public String generateToken(String subject, String role) {
         return Jwts.builder()
-                .setSubject(identifier) // A quién le pertenece (license:admin123)
-                .claim("role", role) // Qué permisos tiene (admin)
-                .setIssuedAt(new Date()) // Fecha de creación
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME)) // Fecha de caducidad
-                .signWith(SECRET_KEY) // Lo firmamos para que nadie lo pueda falsificar
-                .compact(); // Lo convertimos en texto
+                .setSubject(subject)
+                .claim("role", role)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(signingKey)
+                .compact();
+    }
+
+    /**
+     * Valida que el token sea legítimo y no haya caducado.
+     */
+    public boolean validateToken(String token) {
+        try {
+            extractAllClaims(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Extrae el sujeto del token (license o discord:ID).
+     */
+    public String extractSubject(String token) {
+        return extractAllClaims(token).getSubject();
+    }
+
+    /**
+     * Extrae el rol del token (ADMIN, user, etc.).
+     */
+    public String extractRole(String token) {
+        return extractAllClaims(token).get("role", String.class);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(signingKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 }

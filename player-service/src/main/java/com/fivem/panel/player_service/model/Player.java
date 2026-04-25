@@ -58,6 +58,10 @@ public class Player {
     @Column(columnDefinition = "LONGTEXT", nullable = true)
     private String accounts; // {"bank": 5000, "money": 200, ...}
 
+    // --- Inventario (JSON de ESX) ---
+    @Column(columnDefinition = "LONGTEXT", nullable = true)
+    private String inventory;
+
     // --- Timestamps ---
     @Column(name = "created_at", nullable = true)
     private java.time.LocalDateTime createdAt;
@@ -109,6 +113,9 @@ public class Player {
 
     public String getAccounts() { return accounts; }
     public void setAccounts(String accounts) { this.accounts = accounts; }
+
+    public String getInventory() { return inventory; }
+    public void setInventory(String inventory) { this.inventory = inventory; }
 
     public java.time.LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(java.time.LocalDateTime createdAt) { this.createdAt = createdAt; }

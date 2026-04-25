@@ -3,7 +3,9 @@ package com.fivem.panel.player_service.controller;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fivem.panel.player_service.dto.EconomyUpdateRequest;
+import com.fivem.panel.player_service.model.OwnedVehicle;
 import com.fivem.panel.player_service.model.Player;
+import com.fivem.panel.player_service.repository.OwnedVehicleRepository;
 import com.fivem.panel.player_service.repository.PlayerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -11,11 +13,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * El "Cajero": recibe las peticiones HTTP y devuelve los datos en JSON.
- * Todas las rutas aquí son relativas a /players.
- * Desde fuera (vía Gateway) se accede como /player-service/players/...
- */
 @RestController
 @RequestMapping("/players")
 public class PlayerController {
@@ -23,68 +20,108 @@ public class PlayerController {
     @Autowired
     private PlayerRepository playerRepository;
 
+    @Autowired
+    private OwnedVehicleRepository ownedVehicleRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // GET /player-service/players
-    // Devuelve la lista completa de jugadores
     @GetMapping
-    public List<Player> getAllPlayers() {
-        return playerRepository.findAll();
+    public ResponseEntity<List<Player>> getAllPlayers() {
+        try {
+            return ResponseEntity.ok(playerRepository.findAll());
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener jugadores", e);
+        }
     }
 
-    // GET /player-service/players/{identifier}
-    // ej: /player-service/players/license:admin123
     @GetMapping("/{identifier}")
     public ResponseEntity<Player> getPlayerByIdentifier(@PathVariable String identifier) {
-        return playerRepository.findById(identifier)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            return playerRepository.findById(identifier)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            throw new RuntimeException("Error al buscar jugador: " + identifier, e);
+        }
     }
 
-    // GET /player-service/players/group/{group}
-    // ej: /player-service/players/group/admin
     @GetMapping("/group/{group}")
-    public List<Player> getPlayersByGroup(@PathVariable String group) {
-        return playerRepository.findByGroup(group);
+    public ResponseEntity<List<Player>> getPlayersByGroup(@PathVariable String group) {
+        try {
+            return ResponseEntity.ok(playerRepository.findByGroup(group));
+        } catch (Exception e) {
+            throw new RuntimeException("Error al buscar jugadores por grupo: " + group, e);
+        }
     }
 
-    // GET /player-service/players/job/{job}
-    // ej: /player-service/players/job/police
     @GetMapping("/job/{job}")
-    public List<Player> getPlayersByJob(@PathVariable String job) {
-        return playerRepository.findByJob(job);
+    public ResponseEntity<List<Player>> getPlayersByJob(@PathVariable String job) {
+        try {
+            return ResponseEntity.ok(playerRepository.findByJob(job));
+        } catch (Exception e) {
+            throw new RuntimeException("Error al buscar jugadores por trabajo: " + job, e);
+        }
     }
 
-    // GET /player-service/players/search?name=daniel
     @GetMapping("/search")
-    public List<Player> searchByName(@RequestParam String name) {
-        return playerRepository.findByFirstnameContainingIgnoreCase(name);
+    public ResponseEntity<List<Player>> searchByName(@RequestParam String name) {
+        try {
+            return ResponseEntity.ok(playerRepository.findByFirstnameContainingIgnoreCase(name));
+        } catch (Exception e) {
+            throw new RuntimeException("Error al buscar jugadores por nombre: " + name, e);
+        }
     }
 
-    // PUT /player-service/players/{identifier}/economy
-    // Body: { "money": 1500, "bank": 50000 }
+    @GetMapping("/{identifier}/vehicles")
+    public ResponseEntity<List<OwnedVehicle>> getVehicles(@PathVariable String identifier) {
+        try {
+            if (!playerRepository.existsById(identifier)) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(ownedVehicleRepository.findByOwner(identifier));
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener vehículos del jugador: " + identifier, e);
+        }
+    }
+
+    @GetMapping("/{identifier}/inventory")
+    public ResponseEntity<Object> getInventory(@PathVariable String identifier) {
+        try {
+            var opt = playerRepository.findById(identifier);
+            if (opt.isEmpty()) return ResponseEntity.notFound().build();
+            String raw = opt.get().getInventory();
+            if (raw == null || raw.isBlank()) return ResponseEntity.ok(new Object[0]);
+            return ResponseEntity.ok(objectMapper.readValue(raw, Object.class));
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener inventario del jugador: " + identifier, e);
+        }
+    }
+
     @PutMapping("/{identifier}/economy")
     public ResponseEntity<Player> updateEconomy(
             @PathVariable String identifier,
             @RequestBody EconomyUpdateRequest request) {
-
-        return playerRepository.findById(identifier)
-                .map(player -> {
-                    try {
-                        String currentAccounts = player.getAccounts();
-                        ObjectNode accountsNode = (currentAccounts != null && !currentAccounts.isBlank())
-                                ? (ObjectNode) objectMapper.readTree(currentAccounts)
-                                : objectMapper.createObjectNode();
-
-                        accountsNode.put("money", request.getMoney());
-                        accountsNode.put("bank", request.getBank());
-
-                        player.setAccounts(objectMapper.writeValueAsString(accountsNode));
-                        return ResponseEntity.ok(playerRepository.save(player));
-                    } catch (Exception e) {
-                        throw new RuntimeException("Error al procesar el campo accounts", e);
-                    }
-                })
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            return playerRepository.findById(identifier)
+                    .map(player -> {
+                        try {
+                            String currentAccounts = player.getAccounts();
+                            ObjectNode accountsNode = (currentAccounts != null && !currentAccounts.isBlank())
+                                    ? (ObjectNode) objectMapper.readTree(currentAccounts)
+                                    : objectMapper.createObjectNode();
+                            accountsNode.put("money", request.getMoney());
+                            accountsNode.put("bank", request.getBank());
+                            player.setAccounts(objectMapper.writeValueAsString(accountsNode));
+                            return ResponseEntity.ok(playerRepository.save(player));
+                        } catch (Exception e) {
+                            throw new RuntimeException("Error al procesar accounts del jugador: " + identifier, e);
+                        }
+                    })
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Error al actualizar economía del jugador: " + identifier, e);
+        }
     }
 }

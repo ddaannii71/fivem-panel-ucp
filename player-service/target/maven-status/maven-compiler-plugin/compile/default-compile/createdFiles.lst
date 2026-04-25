@@ -1,5 +1,4 @@
 com\fivem\panel\player_service\dto\EconomyUpdateRequest.class
 com\fivem\panel\player_service\PlayerServiceApplication.class
-com\fivem\panel\player_service\controller\PlayerController.class
 com\fivem\panel\player_service\model\Player.class
 com\fivem\panel\player_service\repository\PlayerRepository.class
