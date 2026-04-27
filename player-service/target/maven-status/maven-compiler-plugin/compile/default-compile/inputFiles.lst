@@ -1,7 +1,14 @@
 C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\controller\PlayerController.java
 C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\dto\EconomyUpdateRequest.java
+C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\dto\InventoryItemDTO.java
+C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\dto\PositionUpdateRequest.java
+C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\dto\VehicleUpdateRequest.java
+C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\exception\GlobalExceptionHandler.java
+C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\exception\PlayerNotFoundException.java
+C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\exception\VehicleNotFoundException.java
 C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\model\OwnedVehicle.java
 C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\model\Player.java
 C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\PlayerServiceApplication.java
 C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\repository\OwnedVehicleRepository.java
 C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\repository\PlayerRepository.java
+C:\Users\juand\Desktop\tfg\fivem-panel-ucp\player-service\src\main\java\com\fivem\panel\player_service\service\PlayerService.java

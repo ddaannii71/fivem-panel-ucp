@@ -2,14 +2,18 @@ package com.fivem.panel.player_service.dto;
 
 public class EconomyUpdateRequest {
 
-    private int money;
-    private int bank;
+    private Integer money;
+    private Integer bank;
+    private Integer black_money;
 
     public EconomyUpdateRequest() {}
 
-    public int getMoney() { return money; }
-    public void setMoney(int money) { this.money = money; }
+    public Integer getMoney() { return money; }
+    public void setMoney(Integer money) { this.money = money; }
 
-    public int getBank() { return bank; }
-    public void setBank(int bank) { this.bank = bank; }
+    public Integer getBank() { return bank; }
+    public void setBank(Integer bank) { this.bank = bank; }
+
+    public Integer getBlack_money() { return black_money; }
+    public void setBlack_money(Integer black_money) { this.black_money = black_money; }
 }

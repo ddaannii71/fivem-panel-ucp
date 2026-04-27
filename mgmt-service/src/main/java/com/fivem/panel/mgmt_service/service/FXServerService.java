@@ -180,11 +180,15 @@ public class FXServerService {
 
     private void ensureAuthenticated() {
         if (sessionCookie == null || csrfToken == null) {
-            authenticate();
+            synchronized (this) {
+                if (sessionCookie == null || csrfToken == null) {
+                    authenticate();
+                }
+            }
         }
     }
 
-    private void invalidateSession() {
+    private synchronized void invalidateSession() {
         sessionCookie = null;
         csrfToken = null;
     }

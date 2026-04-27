@@ -62,6 +62,10 @@ public class Player {
     @Column(columnDefinition = "LONGTEXT", nullable = true)
     private String inventory;
 
+    // --- Posición en el mundo (JSON de ESX) ---
+    @Column(columnDefinition = "TEXT", nullable = true)
+    private String position; // {"x":0.0,"y":0.0,"z":0.0,"heading":0.0}
+
     // --- Timestamps ---
     @Column(name = "created_at", nullable = true)
     private java.time.LocalDateTime createdAt;
@@ -116,6 +120,9 @@ public class Player {
 
     public String getInventory() { return inventory; }
     public void setInventory(String inventory) { this.inventory = inventory; }
+
+    public String getPosition() { return position; }
+    public void setPosition(String position) { this.position = position; }
 
     public java.time.LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(java.time.LocalDateTime createdAt) { this.createdAt = createdAt; }

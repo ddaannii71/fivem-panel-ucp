@@ -10,6 +10,22 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(PlayerNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handlePlayerNotFound(PlayerNotFoundException e) {
+        return ResponseEntity.status(404).body(Map.of(
+                "error", "Jugador no encontrado",
+                "detail", e.getMessage()
+        ));
+    }
+
+    @ExceptionHandler(VehicleNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleVehicleNotFound(VehicleNotFoundException e) {
+        return ResponseEntity.status(404).body(Map.of(
+                "error", "Vehículo no encontrado",
+                "detail", e.getMessage()
+        ));
+    }
+
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Map<String, Object>> handleDb(DataAccessException e) {
         return ResponseEntity.status(503).body(Map.of(
