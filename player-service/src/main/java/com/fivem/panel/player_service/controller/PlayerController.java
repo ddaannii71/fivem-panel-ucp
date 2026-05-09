@@ -62,6 +62,13 @@ public class PlayerController {
         return ResponseEntity.ok(playerRepository.findByFirstnameContainingIgnoreCase(name));
     }
 
+    // Devuelve todos los personajes (char1, char2...) del mismo hash de licencia
+    // El hash es la parte después de "charN:" → mismo para todos los personajes del jugador
+    @GetMapping("/chars/{licenseHash}")
+    public ResponseEntity<List<Player>> getCharsByLicenseHash(@PathVariable String licenseHash) {
+        return ResponseEntity.ok(playerRepository.findByIdentifierEndingWith(licenseHash));
+    }
+
     @GetMapping("/{identifier}/vehicles")
     public ResponseEntity<List<OwnedVehicle>> getVehicles(@PathVariable String identifier) {
         if (!playerRepository.existsById(identifier)) {

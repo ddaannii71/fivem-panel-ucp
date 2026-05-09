@@ -21,4 +21,8 @@ public interface PlayerRepository extends JpaRepository<Player, String> {
 
     // Busca jugadores por nombre (ignora mayúsculas/minúsculas)
     List<Player> findByFirstnameContainingIgnoreCase(String firstname);
+
+    // Busca todos los personajes cuyo identifier termina en el hash de licencia
+    // Ej: hash = "04a66f..." → encuentra char1:04a66f..., char2:04a66f..., etc.
+    List<Player> findByIdentifierEndingWith(String licenseHash);
 }

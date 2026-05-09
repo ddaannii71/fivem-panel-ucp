@@ -20,7 +20,9 @@ public class AuthenticationFilter implements GlobalFilter {
 
     // Rutas que no necesitan token
     private static final List<String> PUBLIC_PATHS = List.of(
-            "/auth/"
+            "/auth/",
+            "/oauth2/",
+            "/login/oauth2/"
     );
 
     // Rutas que además requieren rol admin o superadmin
