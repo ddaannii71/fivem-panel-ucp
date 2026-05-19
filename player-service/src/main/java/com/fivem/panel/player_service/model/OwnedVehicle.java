@@ -25,6 +25,9 @@ public class OwnedVehicle {
     @Column(nullable = false, columnDefinition = "TINYINT(1)")
     private Boolean stored;
 
+    @Column(nullable = true)
+    private String parking;
+
     public OwnedVehicle() {}
 
     public String getPlate()   { return plate; }
@@ -41,4 +44,7 @@ public class OwnedVehicle {
 
     public Boolean getStored() { return stored; }
     public void setStored(Boolean stored) { this.stored = stored; }
+
+    public String getParking() { return parking; }
+    public void setParking(String parking) { this.parking = parking; }
 }

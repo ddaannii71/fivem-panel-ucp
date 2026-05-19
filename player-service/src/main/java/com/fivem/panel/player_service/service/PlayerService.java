@@ -66,8 +66,10 @@ public class PlayerService {
 
         try {
             ArrayNode arrayNode = objectMapper.createArrayNode();
-            for (InventoryItemDTO item : items) {
+            for (int i = 0; i < items.size(); i++) {
+                InventoryItemDTO item = items.get(i);
                 ObjectNode itemNode = objectMapper.createObjectNode();
+                itemNode.put("slot",  item.getSlot() != null ? item.getSlot() : i + 1);
                 itemNode.put("name",  item.getName());
                 itemNode.put("count", item.getCount());
                 arrayNode.add(itemNode);
@@ -103,9 +105,15 @@ public class PlayerService {
                     break;
                 }
             }
-            // Si no existe, añadir entrada nueva
+            // Si no existe, añadir entrada nueva con el siguiente slot disponible
             if (!found) {
+                int maxSlot = 0;
+                for (var node : arrayNode) {
+                    int s = node.path("slot").asInt(0);
+                    if (s > maxSlot) maxSlot = s;
+                }
                 ObjectNode newItem = objectMapper.createObjectNode();
+                newItem.put("slot",  maxSlot + 1);
                 newItem.put("name",  itemName);
                 newItem.put("count", count);
                 arrayNode.add(newItem);
@@ -198,18 +206,8 @@ public class PlayerService {
             vehicle.setStored(req.getStored());
         }
 
-        // parking se almacena dentro del JSON de vehicle si aplica
         if (req.getParking() != null) {
-            try {
-                String raw = vehicle.getVehicle();
-                ObjectNode node = (raw != null && !raw.isBlank())
-                        ? (ObjectNode) objectMapper.readTree(raw)
-                        : objectMapper.createObjectNode();
-                node.put("parking", req.getParking());
-                vehicle.setVehicle(objectMapper.writeValueAsString(node));
-            } catch (Exception e) {
-                throw new RuntimeException("Error al procesar vehicle JSON de " + plate, e);
-            }
+            vehicle.setParking(req.getParking());
         }
 
         return ownedVehicleRepository.save(vehicle);
