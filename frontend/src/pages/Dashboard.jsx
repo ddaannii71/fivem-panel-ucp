@@ -2,7 +2,7 @@
 // Muestra los personajes del usuario, su dinero, inventario y vehiculos
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../api';
 import { getUserRole } from '../auth/authUtils';
 
 // Funcion auxiliar: saca el hash de la licencia desde el token JWT

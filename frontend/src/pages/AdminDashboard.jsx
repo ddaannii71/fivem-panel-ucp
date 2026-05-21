@@ -2,7 +2,7 @@
 // Permite buscar jugadores y modificar su economia, inventario, vehiculos, posicion
 // Tambien permite expulsar o banear
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import axios from '../api';
 import { useNavigate } from 'react-router-dom';
 
 // --- Funciones auxiliares ---
