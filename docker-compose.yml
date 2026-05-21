@@ -12,6 +12,8 @@ services:
   api-gateway:
     build: ./api-gateway
     container_name: api-gateway 
+    expose:
+      - "8080"
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
     depends_on:
