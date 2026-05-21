@@ -1,15 +1,35 @@
 package com.fivem.panel.mgmt_service.dto;
 
+// DTO con los datos para expulsar a un jugador
 public class KickRequest {
 
-    private String license; // hash sin prefijo: 04a66f575d2881a187593245ec42ec832399a9f0
+    // El hash de la licencia del jugador (sin el prefijo "license:")
+    private String license;
+
+    // Motivo del kick
     private String reason;
 
-    public KickRequest() {}
+    // Constructor vacio
+    public KickRequest() {
+    }
 
-    public String getLicense() { return license; }
-    public void setLicense(String license) { this.license = license; }
+    // Getter de la licencia
+    public String getLicense() {
+        return license;
+    }
 
-    public String getReason() { return reason; }
-    public void setReason(String reason) { this.reason = reason; }
+    // Setter de la licencia
+    public void setLicense(String license) {
+        this.license = license;
+    }
+
+    // Getter del motivo
+    public String getReason() {
+        return reason;
+    }
+
+    // Setter del motivo
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
 }

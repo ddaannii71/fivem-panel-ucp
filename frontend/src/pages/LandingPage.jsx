@@ -1,3 +1,5 @@
+// Pagina de inicio (landing) y tambien sirve para login
+// Si la URL trae un token, lo guarda y redirige al dashboard
 import { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -5,14 +7,17 @@ export default function LandingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  // Al cargar la pagina miro si vienen parametros en la URL
   useEffect(() => {
     const token = searchParams.get('token');
     const error = searchParams.get('error');
+
     if (token) {
+      // Si hay token, lo guardo y voy al dashboard
       localStorage.setItem('jwt', token);
       navigate('/dashboard', { replace: true });
     } else if (error) {
-      // Deja que el componente renderice con el error visible en la URL
+      // Si hay error, lo dejo en la URL para que el usuario lo vea
       console.warn('OAuth2 error:', error);
     }
   }, [searchParams, navigate]);
@@ -20,7 +25,7 @@ export default function LandingPage() {
   return (
     <div className="bg-dark text-light font-body" style={{ minHeight: '100vh' }}>
 
-      {/* NAV */}
+      {/* Barra de navegacion */}
       <nav className="navbar navbar-expand-md navbar-dark sticky-top" style={{ backgroundColor: 'rgba(15, 20, 25, 0.8)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(0,209,255,0.2)' }}>
         <div className="container py-2">
           <span className="navbar-brand fs-4 fw-bold text-info text-uppercase" style={{ letterSpacing: '0.1em' }}>UCP SUITE</span>
@@ -29,11 +34,12 @@ export default function LandingPage() {
           </button>
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav mx-auto gap-3">
-              <li className="nav-item"><a className="nav-link text-secondary" href="#">Economía</a></li>
+              <li className="nav-item"><a className="nav-link text-secondary" href="#">Economia</a></li>
               <li className="nav-item"><a className="nav-link text-secondary" href="#">Propiedades</a></li>
               <li className="nav-item"><a className="nav-link text-secondary" href="#">Facciones</a></li>
               <li className="nav-item"><a className="nav-link text-secondary" href="#">Tienda</a></li>
             </ul>
+            {/* Boton de login con Discord */}
             <a
               href="http://localhost:8080/oauth2/authorization/discord"
               className="btn btn-info fw-bold text-dark px-4"
@@ -45,7 +51,7 @@ export default function LandingPage() {
       </nav>
 
       <main>
-        {/* HERO */}
+        {/* Hero principal */}
         <section className="position-relative d-flex align-items-center py-5 overflow-hidden" style={{ minHeight: '100vh' }}>
           <div className="position-absolute top-0 start-0 w-100 h-100 z-0">
             <img
@@ -71,7 +77,7 @@ export default function LandingPage() {
                 </h1>
 
                 <p className="lead text-secondary mb-5 border-start border-info border-3 ps-3">
-                  Experimenta el siguiente nivel de simulación urbana. Gestiona tus activos, lidera organizaciones y domina la economía digital con el panel de control más avanzado del ecosistema.
+                  Experimenta el siguiente nivel de simulacion urbana. Gestiona tus activos, lidera organizaciones y domina la economia digital con el panel de control mas avanzado del ecosistema.
                 </p>
 
                 <div className="d-flex flex-wrap gap-3">
@@ -89,7 +95,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* Stats Bento Grid */}
+              {/* Grid de stats */}
               <div className="col-lg-6">
                 <div className="row g-3">
                   <div className="col-sm-6">
@@ -107,7 +113,7 @@ export default function LandingPage() {
                       <span className="material-symbols-outlined text-info fs-1 mb-3">account_balance</span>
                       <div>
                         <div className="fs-2 fw-bold text-white">$4.2M</div>
-                        <span className="text-secondary small text-uppercase" style={{ letterSpacing: '0.1em' }}>Circulación Total</span>
+                        <span className="text-secondary small text-uppercase" style={{ letterSpacing: '0.1em' }}>Circulacion Total</span>
                       </div>
                     </div>
                   </div>
@@ -132,7 +138,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* FEATURES */}
+        {/* Seccion de caracteristicas */}
         <section className="py-5 my-5">
           <div className="container">
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-5 gap-3">
@@ -141,7 +147,7 @@ export default function LandingPage() {
                 <h3 className="display-5 fw-bold mb-0 text-white">INFRAESTRUCTURA</h3>
               </div>
               <p className="text-secondary mb-0" style={{ maxWidth: '400px' }}>
-                Diseñado para ofrecer una experiencia sin interrupciones con latencia mínima y herramientas de gestión en tiempo real.
+                Disenado para ofrecer una experiencia sin interrupciones con latencia minima y herramientas de gestion en tiempo real.
               </p>
             </div>
 
@@ -149,18 +155,18 @@ export default function LandingPage() {
               {[
                 {
                   src: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC1S1hqTVDHhklDIxCuKDOTN0Sgv15NXRQOK16tSh8k2eo1iXuDg7AJKN2TmpayVMBVKXt9I47CLqX4wdGW2pgvlznc4jYs6gnoHtSMt3UG8HHQXleAcotfGURHVQOYEGGpo36N1LQQrxbPZHPW4_D8vQB9NPXlORBQGbjND6Kjo6lj1wQ0BLgXcELQRd6MZyr6WgXxb4htc5NKO_0wrn2aRbqUSwpKYdDYy5_jkVjx-jS49AeJENWWIxiM9OlTztSh__47zKSYELaL',
-                  icon: 'payments', title: 'Economía Dinámica',
-                  desc: 'Sistema de mercado libre con inflación controlada y múltiples vías de generación de ingresos legales e ilegales.',
+                  icon: 'payments', title: 'Economia Dinamica',
+                  desc: 'Sistema de mercado libre con inflacion controlada y multiples vias de generacion de ingresos legales e ilegales.',
                 },
                 {
                   src: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB6bUfW8mopsJg21aIOnBnrlWOJbl4TADPAYgS5WlcNdIcUKFyLSvcgrnuzjOqwWbRmZjMIInNz9H9tEwRll3wXuJ3YB3iWQmPMZJkp8qWCMDtDQidTg9IyoDJPUyhDfsUPxhRLCtriIgYpiehDw4xRmS97Ndw0CM-k2txAZbEbQsmwnwZzibYpv68NPYpwv5GdaYgfWws2lqeG7PFG7rGFmQJL-4UjwhZxMoD6HsDMZLaCnPuubgld65IOc1o_KrQC76JllITjUNKe',
                   icon: 'map', title: 'Propiedades Inteligentes',
-                  desc: 'Adquiere casas, almacenes y negocios. Personaliza interiores y gestiona accesos mediante el sistema biométrico digital.',
+                  desc: 'Adquiere casas, almacenes y negocios. Personaliza interiores y gestiona accesos mediante el sistema biometrico digital.',
                 },
                 {
                   src: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCgVTaX1DjIU3rvjJUBlDnjIhMiR1J5WOi4kNYISSVeDqAgH9lxEl5iRmvycPMLAsogS-SMdAtwT_aE4GbK8T8PC7wXYosmBJtL-heINkSWCQ5nkNof5IICz9MGBUx2UQEfW4Zc74KHIt7N5CjjQd7_pQmu2WpFrifOBOJ71n-YzWlzvm0P12NcnvpaMyvU5LhCU9cQRtUTH-6GqUJmbdRM7TvpbCNnCtDCpJYd6GHqI0KtDbhdQSWYaTMboZFkG9ZUocNxp4HbrQNE',
                   icon: 'shield', title: 'Seguridad de Datos',
-                  desc: 'Encriptación de fin a fin para tus transacciones y datos de personaje. Tu progreso está siempre a salvo en la red.',
+                  desc: 'Encriptacion de fin a fin para tus transacciones y datos de personaje. Tu progreso esta siempre a salvo en la red.',
                 },
               ].map((f) => (
                 <div key={f.title} className="col-md-4">
@@ -178,14 +184,14 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* CTA */}
+        {/* Seccion CTA (call to action) */}
         <section className="py-5 my-5">
           <div className="container">
             <div className="position-relative p-5 rounded-4 text-center border border-secondary shadow-lg overflow-hidden" style={{ background: 'linear-gradient(135deg, #1b2025, #252a30)' }}>
               <div className="position-relative z-1">
-                <h2 className="display-5 fw-bold mb-4 text-white">¿LISTO PARA EL ACCESO?</h2>
+                <h2 className="display-5 fw-bold mb-4 text-white">LISTO PARA EL ACCESO?</h2>
                 <p className="lead text-secondary mb-5 mx-auto" style={{ maxWidth: '700px' }}>
-                  Únete a miles de ciudadanos en la metrópolis digital más avanzada. Elige tu camino y forja tu propia leyenda en el ecosistema Azure.
+                  Unete a miles de ciudadanos en la metropolis digital mas avanzada. Elige tu camino y forja tu propia leyenda en el ecosistema Azure.
                 </p>
                 <div className="d-flex flex-column flex-sm-row justify-content-center gap-3">
                   <button className="btn btn-info btn-lg fw-bold px-5 text-dark shadow">
@@ -201,7 +207,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      {/* FOOTER */}
+      {/* Pie de pagina */}
       <footer className="py-5 border-top border-secondary text-secondary mt-5" style={{ backgroundColor: '#0a0f14' }}>
         <div className="container">
           <div className="row align-items-center g-4">
@@ -213,7 +219,7 @@ export default function LandingPage() {
               <ul className="list-inline text-center mb-0">
                 <li className="list-inline-item mx-2"><a className="text-decoration-none text-secondary" href="#">Discord</a></li>
                 <li className="list-inline-item mx-2"><a className="text-decoration-none text-secondary" href="#">Reglas</a></li>
-                <li className="list-inline-item mx-2"><a className="text-decoration-none text-secondary" href="#">Términos Legales</a></li>
+                <li className="list-inline-item mx-2"><a className="text-decoration-none text-secondary" href="#">Terminos Legales</a></li>
                 <li className="list-inline-item mx-2"><a className="text-decoration-none text-secondary" href="#">Soporte</a></li>
               </ul>
             </div>

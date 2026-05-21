@@ -6,23 +6,21 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-/**
- * El "Buscador": Spring genera las consultas SQL automáticamente
- * a partir del nombre de los métodos.
- */
+// Repositorio para acceder a la tabla users (los jugadores)
+// Spring genera las queries SQL solo a partir del nombre de los metodos
 @Repository
 public interface PlayerRepository extends JpaRepository<Player, String> {
 
-    // Busca todos los jugadores de un grupo (ej: "admin")
+    // Busca todos los jugadores que tengan un grupo concreto (ej: "admin")
     List<Player> findByGroup(String group);
 
-    // Busca todos los jugadores de un trabajo (ej: "police")
+    // Busca todos los jugadores con un trabajo concreto (ej: "police")
     List<Player> findByJob(String job);
 
-    // Busca jugadores por nombre (ignora mayúsculas/minúsculas)
+    // Busca por nombre ignorando mayusculas y minusculas
     List<Player> findByFirstnameContainingIgnoreCase(String firstname);
 
-    // Busca todos los personajes cuyo identifier termina en el hash de licencia
-    // Ej: hash = "04a66f..." → encuentra char1:04a66f..., char2:04a66f..., etc.
+    // Busca todos los personajes cuyo identifier termina en un hash dado
+    // Ej: si paso "abc123" me devuelve char1:abc123, char2:abc123, etc.
     List<Player> findByIdentifierEndingWith(String licenseHash);
 }

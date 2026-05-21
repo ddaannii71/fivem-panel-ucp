@@ -1,19 +1,48 @@
 package com.fivem.panel.player_service.dto;
 
+// DTO que representa un item del inventario
 public class InventoryItemDTO {
 
+    // Numero de slot donde esta el item
     private Integer slot;
+
+    // Nombre del item (ej: "water", "bread")
     private String name;
+
+    // Cuantas unidades hay
     private int count;
 
-    public InventoryItemDTO() {}
+    // Constructor vacio
+    public InventoryItemDTO() {
+    }
 
-    public Integer getSlot() { return slot; }
-    public void setSlot(Integer slot) { this.slot = slot; }
+    // Getter del slot
+    public Integer getSlot() {
+        return slot;
+    }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    // Setter del slot
+    public void setSlot(Integer slot) {
+        this.slot = slot;
+    }
 
-    public int getCount() { return count; }
-    public void setCount(int count) { this.count = count; }
+    // Getter del nombre
+    public String getName() {
+        return name;
+    }
+
+    // Setter del nombre
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    // Getter de la cantidad
+    public int getCount() {
+        return count;
+    }
+
+    // Setter de la cantidad
+    public void setCount(int count) {
+        this.count = count;
+    }
 }

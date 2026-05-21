@@ -6,11 +6,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+// Repositorio para acceder a la tabla users
+// Spring se encarga de crear la implementacion solo
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
 
-    // Spring crea automáticamente la query: SELECT * FROM users WHERE identifier =
-    // ?
+    // Busca un usuario por su identifier
+    // Spring genera la query automaticamente: SELECT * FROM users WHERE identifier = ?
     Optional<User> findByIdentifier(String identifier);
-
 }

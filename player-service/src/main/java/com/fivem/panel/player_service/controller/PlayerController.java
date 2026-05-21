@@ -1,160 +1,190 @@
 package com.fivem.panel.player_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fivem.panel.player_service.dto.*;
+import com.fivem.panel.player_service.dto.EconomyUpdateRequest;
+import com.fivem.panel.player_service.dto.InventoryItemDTO;
+import com.fivem.panel.player_service.dto.PositionUpdateRequest;
+import com.fivem.panel.player_service.dto.VehicleUpdateRequest;
 import com.fivem.panel.player_service.model.OwnedVehicle;
 import com.fivem.panel.player_service.model.Player;
 import com.fivem.panel.player_service.repository.OwnedVehicleRepository;
 import com.fivem.panel.player_service.repository.PlayerRepository;
 import com.fivem.panel.player_service.service.PlayerService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Optional;
 
+// Controlador de los jugadores
+// Aqui estan todos los endpoints REST relacionados con personajes, economia, inventario, etc
 @RestController
 @RequestMapping("/players")
 public class PlayerController {
 
-    private final PlayerRepository playerRepository;
-    private final OwnedVehicleRepository ownedVehicleRepository;
-    private final PlayerService playerService;
-    private final ObjectMapper objectMapper;
+    // Repositorio de jugadores
+    @Autowired
+    private PlayerRepository playerRepository;
 
-    public PlayerController(PlayerRepository playerRepository,
-                            OwnedVehicleRepository ownedVehicleRepository,
-                            PlayerService playerService,
-                            ObjectMapper objectMapper) {
-        this.playerRepository = playerRepository;
-        this.ownedVehicleRepository = ownedVehicleRepository;
-        this.playerService = playerService;
-        this.objectMapper = objectMapper;
-    }
+    // Repositorio de vehiculos
+    @Autowired
+    private OwnedVehicleRepository ownedVehicleRepository;
 
-    // ------------------------------------------------------------------ //
-    //  READ endpoints                                                       //
-    // ------------------------------------------------------------------ //
+    // Servicio con la logica de modificacion
+    @Autowired
+    private PlayerService playerService;
 
+    // Para parsear JSON
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    // GET /players -> devuelve todos los jugadores
     @GetMapping
     public ResponseEntity<List<Player>> getAllPlayers() {
-        return ResponseEntity.ok(playerRepository.findAll());
+        List<Player> jugadores = playerRepository.findAll();
+        return ResponseEntity.ok(jugadores);
     }
 
+    // GET /players/{identifier} -> busca un jugador por su identifier
     @GetMapping("/{identifier}")
     public ResponseEntity<Player> getPlayerByIdentifier(@PathVariable String identifier) {
-        return playerRepository.findById(identifier)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        Optional<Player> opt = playerRepository.findById(identifier);
+        if (opt.isPresent()) {
+            return ResponseEntity.ok(opt.get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
+    // GET /players/group/{group} -> busca jugadores por grupo
     @GetMapping("/group/{group}")
     public ResponseEntity<List<Player>> getPlayersByGroup(@PathVariable String group) {
-        return ResponseEntity.ok(playerRepository.findByGroup(group));
+        List<Player> jugadores = playerRepository.findByGroup(group);
+        return ResponseEntity.ok(jugadores);
     }
 
+    // GET /players/job/{job} -> busca jugadores por trabajo
     @GetMapping("/job/{job}")
     public ResponseEntity<List<Player>> getPlayersByJob(@PathVariable String job) {
-        return ResponseEntity.ok(playerRepository.findByJob(job));
+        List<Player> jugadores = playerRepository.findByJob(job);
+        return ResponseEntity.ok(jugadores);
     }
 
+    // GET /players/search?name=xxx -> busca jugadores cuyo nombre contenga "xxx"
     @GetMapping("/search")
     public ResponseEntity<List<Player>> searchByName(@RequestParam String name) {
-        return ResponseEntity.ok(playerRepository.findByFirstnameContainingIgnoreCase(name));
+        List<Player> jugadores = playerRepository.findByFirstnameContainingIgnoreCase(name);
+        return ResponseEntity.ok(jugadores);
     }
 
-    // Devuelve todos los personajes (char1, char2...) del mismo hash de licencia
-    // El hash es la parte después de "charN:" → mismo para todos los personajes del jugador
+    // GET /players/chars/{licenseHash} -> devuelve todos los personajes de un mismo jugador
+    // Un jugador puede tener varios personajes (char1, char2...) con el mismo hash
     @GetMapping("/chars/{licenseHash}")
     public ResponseEntity<List<Player>> getCharsByLicenseHash(@PathVariable String licenseHash) {
-        return ResponseEntity.ok(playerRepository.findByIdentifierEndingWith(licenseHash));
+        List<Player> personajes = playerRepository.findByIdentifierEndingWith(licenseHash);
+        return ResponseEntity.ok(personajes);
     }
 
+    // GET /players/{identifier}/vehicles -> devuelve los vehiculos de un jugador
     @GetMapping("/{identifier}/vehicles")
     public ResponseEntity<List<OwnedVehicle>> getVehicles(@PathVariable String identifier) {
+        // Primero compruebo que el jugador existe
         if (!playerRepository.existsById(identifier)) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(ownedVehicleRepository.findByOwner(identifier));
+        // Si existe, devuelvo sus vehiculos
+        List<OwnedVehicle> vehiculos = ownedVehicleRepository.findByOwner(identifier);
+        return ResponseEntity.ok(vehiculos);
     }
 
+    // GET /players/{identifier}/inventory -> devuelve el inventario de un jugador
     @GetMapping("/{identifier}/inventory")
     public ResponseEntity<Object> getInventory(@PathVariable String identifier) {
-        var opt = playerRepository.findById(identifier);
-        if (opt.isEmpty()) return ResponseEntity.notFound().build();
+        // Busco al jugador
+        Optional<Player> opt = playerRepository.findById(identifier);
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // El inventario esta guardado como String JSON
         String raw = opt.get().getInventory();
-        if (raw == null || raw.isBlank()) return ResponseEntity.ok(new Object[0]);
+        if (raw == null || raw.isBlank()) {
+            // Si esta vacio devuelvo un array vacio
+            return ResponseEntity.ok(new Object[0]);
+        }
+
+        // Parseo el JSON y lo devuelvo
         try {
-            return ResponseEntity.ok(objectMapper.readValue(raw, Object.class));
+            Object parseado = objectMapper.readValue(raw, Object.class);
+            return ResponseEntity.ok(parseado);
         } catch (Exception e) {
             throw new RuntimeException("Error al parsear inventario de " + identifier, e);
         }
     }
 
-    // ------------------------------------------------------------------ //
-    //  ADMIN: modificar economía                                            //
-    //  PUT /players/{identifier}/economy                                    //
-    // ------------------------------------------------------------------ //
+    // PUT /players/{identifier}/economy -> modifica el dinero del jugador
     @PutMapping("/{identifier}/economy")
     public ResponseEntity<Player> updateEconomy(
             @PathVariable String identifier,
             @RequestBody EconomyUpdateRequest request) {
-        return ResponseEntity.ok(playerService.updateEconomy(identifier, request));
+        Player actualizado = playerService.updateEconomy(identifier, request);
+        return ResponseEntity.ok(actualizado);
     }
 
-    // ------------------------------------------------------------------ //
-    //  ADMIN: sobreescribir inventario completo                             //
-    //  PUT /players/{identifier}/inventory                                  //
-    // ------------------------------------------------------------------ //
+    // PUT /players/{identifier}/inventory -> sobrescribe el inventario entero
     @PutMapping("/{identifier}/inventory")
     public ResponseEntity<Player> updateInventory(
             @PathVariable String identifier,
             @RequestBody List<InventoryItemDTO> items) {
-        return ResponseEntity.ok(playerService.updateInventory(identifier, items));
+        Player actualizado = playerService.updateInventory(identifier, items);
+        return ResponseEntity.ok(actualizado);
     }
 
-    // ------------------------------------------------------------------ //
-    //  ADMIN: añadir/incrementar ítem                                       //
-    //  POST /players/{identifier}/inventory/{itemName}?count=N              //
-    // ------------------------------------------------------------------ //
+    // POST /players/{identifier}/inventory/{itemName}?count=N -> anade un item al inventario
     @PostMapping("/{identifier}/inventory/{itemName}")
     public ResponseEntity<Player> addInventoryItem(
             @PathVariable String identifier,
             @PathVariable String itemName,
             @RequestParam(defaultValue = "1") int count) {
-        return ResponseEntity.ok(playerService.addInventoryItem(identifier, itemName, count));
+        Player actualizado = playerService.addInventoryItem(identifier, itemName, count);
+        return ResponseEntity.ok(actualizado);
     }
 
-    // ------------------------------------------------------------------ //
-    //  ADMIN: eliminar ítem                                                 //
-    //  DELETE /players/{identifier}/inventory/{itemName}                    //
-    // ------------------------------------------------------------------ //
+    // DELETE /players/{identifier}/inventory/{itemName} -> quita un item del inventario
     @DeleteMapping("/{identifier}/inventory/{itemName}")
     public ResponseEntity<Player> removeInventoryItem(
             @PathVariable String identifier,
             @PathVariable String itemName) {
-        return ResponseEntity.ok(playerService.removeInventoryItem(identifier, itemName));
+        Player actualizado = playerService.removeInventoryItem(identifier, itemName);
+        return ResponseEntity.ok(actualizado);
     }
 
-    // ------------------------------------------------------------------ //
-    //  ADMIN: modificar posición                                            //
-    //  PUT /players/{identifier}/position                                   //
-    // ------------------------------------------------------------------ //
+    // PUT /players/{identifier}/position -> cambia la posicion del jugador (teletransporte)
     @PutMapping("/{identifier}/position")
     public ResponseEntity<Player> updatePosition(
             @PathVariable String identifier,
             @RequestBody PositionUpdateRequest request) {
-        return ResponseEntity.ok(playerService.updatePosition(identifier, request));
+        Player actualizado = playerService.updatePosition(identifier, request);
+        return ResponseEntity.ok(actualizado);
     }
 
-    // ------------------------------------------------------------------ //
-    //  ADMIN: modificar estado de vehículo                                  //
-    //  PATCH /players/{identifier}/vehicles/{plate}                         //
-    // ------------------------------------------------------------------ //
+    // PATCH /players/{identifier}/vehicles/{plate} -> modifica un vehiculo del jugador
     @PatchMapping("/{identifier}/vehicles/{plate}")
     public ResponseEntity<OwnedVehicle> updateVehicle(
             @PathVariable String identifier,
             @PathVariable String plate,
             @RequestBody VehicleUpdateRequest request) {
-        return ResponseEntity.ok(playerService.updateVehicle(identifier, plate, request));
+        OwnedVehicle actualizado = playerService.updateVehicle(identifier, plate, request);
+        return ResponseEntity.ok(actualizado);
     }
 }

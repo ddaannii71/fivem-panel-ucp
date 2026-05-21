@@ -1,29 +1,49 @@
 package com.fivem.panel.mgmt_service.dto;
 
-/**
- * Body para el endpoint POST /players/ban
- *
- * Ejemplos de duration válidos en txAdmin v8:
- *   "permanent"
- *   "1 hour"  | "6 hours"
- *   "1 day"   | "3 days"
- *   "1 week"  | "2 weeks"
- *   "1 month"
- */
+// DTO con los datos para banear a un jugador
+// La duracion puede ser: "permanent", "1 hour", "1 day", "1 week", "1 month", etc.
 public class BanRequest {
 
-    private String license;  // hash sin prefijo: 04a66f575d2881a187593245ec42ec832399a9f0
+    // El hash de la licencia del jugador (sin "license:")
+    private String license;
+
+    // Motivo del ban
     private String reason;
-    private String duration; // "permanent", "1 day", "1 week", etc.
 
-    public BanRequest() {}
+    // Cuanto dura el ban
+    private String duration;
 
-    public String getLicense()  { return license; }
-    public void setLicense(String license) { this.license = license; }
+    // Constructor vacio
+    public BanRequest() {
+    }
 
-    public String getReason()   { return reason; }
-    public void setReason(String reason) { this.reason = reason; }
+    // Getter de la licencia
+    public String getLicense() {
+        return license;
+    }
 
-    public String getDuration() { return duration; }
-    public void setDuration(String duration) { this.duration = duration; }
+    // Setter de la licencia
+    public void setLicense(String license) {
+        this.license = license;
+    }
+
+    // Getter del motivo
+    public String getReason() {
+        return reason;
+    }
+
+    // Setter del motivo
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+
+    // Getter de la duracion
+    public String getDuration() {
+        return duration;
+    }
+
+    // Setter de la duracion
+    public void setDuration(String duration) {
+        this.duration = duration;
+    }
 }

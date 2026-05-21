@@ -6,107 +6,113 @@ import com.fivem.panel.mgmt_service.config.FXServerConfig;
 import com.fivem.panel.mgmt_service.exception.PlayerNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
-/**
- * Servicio de gestión del servidor FiveM.
- *
- * - getServerStatus() : consulta /info.json y /players.json via HTTP nativo de
- * FXServer.
- * - kickPlayer() : expulsa un jugador via txAdmin API (sesión + CSRF).
- */
+// Servicio que habla con el servidor FiveM (FXServer) y con txAdmin
+// - getServerStatus(): pregunta al FXServer si esta online y cuantos jugadores hay
+// - kickPlayer() y banPlayer(): usan la API de txAdmin (con sesion + CSRF)
+// - findLicenseByDiscordId(): busca la licencia de un jugador a partir de su Discord
 @Service
 public class FXServerService {
 
+    // Logger para imprimir mensajes
     private static final Logger log = LoggerFactory.getLogger(FXServerService.class);
 
-    private final RestTemplate restTemplate;
-    private final FXServerConfig config;
+    // RestTemplate para hacer peticiones HTTP
+    @Autowired
+    private RestTemplate restTemplate;
+
+    // Configuracion con las IPs, puertos y credenciales
+    @Autowired
+    private FXServerConfig config;
+
+    // Parser de JSON
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Estado de sesión txAdmin — volatile para seguridad en entornos multi-hilo
+    // La cookie de sesion de txAdmin (se guarda despues de hacer login)
+    // volatile para que sea segura entre hilos
     private volatile String sessionCookie = null;
+
+    // El token CSRF de txAdmin
     private volatile String csrfToken = null;
 
-    public FXServerService(RestTemplate restTemplate, FXServerConfig config) {
-        this.restTemplate = restTemplate;
-        this.config = config;
-    }
-
-    // =========================================================================
-    // Estado del servidor (HTTP nativo FXServer)
-    // =========================================================================
-
-    /**
-     * Consulta /info.json y /players.json del FXServer y los combina.
-     * FXServer devuelve Content-Type: application/octet-stream, por lo que
-     * recogemos como String y parseamos manualmente con Jackson.
-     */
+    // Pide al FXServer su estado: info y lista de jugadores online
+    // Junta /info.json y /players.json en un solo Map
     public Map<String, Object> getServerStatus() {
         String base = "http://" + config.getIp() + ":" + config.getPort();
         Map<String, Object> result = new LinkedHashMap<>();
+
         try {
+            // Pido los dos endpoints del FXServer
             String infoRaw = restTemplate.getForObject(base + "/info.json", String.class);
             String playersRaw = restTemplate.getForObject(base + "/players.json", String.class);
 
-            Map<String, Object> info = objectMapper.readValue(infoRaw, new TypeReference<>() {
-            });
-            List<Object> players = objectMapper.readValue(playersRaw, new TypeReference<>() {
-            });
+            // Parseo los JSON manualmente porque FXServer devuelve el content-type raro
+            Map<String, Object> info = objectMapper.readValue(infoRaw, new TypeReference<Map<String, Object>>() {});
+            List<Object> players = objectMapper.readValue(playersRaw, new TypeReference<List<Object>>() {});
 
+            // Lo meto todo en el resultado
             result.put("status", "online");
             result.put("info", info);
             result.put("players", players);
         } catch (ResourceAccessException e) {
-            log.warn("FXServer no accesible en {}:{} — {}", config.getIp(), config.getPort(), e.getMessage());
+            // Si no se puede conectar, esta offline
+            log.warn("FXServer no accesible en {}:{} - {}", config.getIp(), config.getPort(), e.getMessage());
             result.put("status", "offline");
         } catch (Exception e) {
+            // Si pasa otra cosa, devuelvo error
             log.error("Error al parsear respuesta de FXServer: {}", e.getMessage());
             result.put("status", "error");
             result.put("detail", e.getMessage());
         }
+
         return result;
     }
 
-    // =========================================================================
-    // Kick de jugador (txAdmin API con sesión + CSRF)
-    // =========================================================================
-
-    /**
-     * Expulsa a un jugador usando la API de txAdmin.
-     * Gestiona automáticamente la sesión y el token CSRF. Si la sesión caduca
-     * (respuesta 401/403), invalida las credenciales en caché y reintenta una vez.
-     */
+    // Expulsa a un jugador usando la API de txAdmin
+    // Si la sesion ha caducado, vuelve a hacer login y reintenta
     public Map<String, Object> kickPlayer(String license, String reason) {
         Map<String, Object> result = new LinkedHashMap<>();
+
         try {
+            // Me aseguro de tener sesion abierta
             ensureAuthenticated();
+            // Hago el POST /player/kick
             postKick(license, reason);
             result.put("success", true);
             result.put("license", license);
         } catch (HttpClientErrorException e) {
-            HttpStatusCode status = e.getStatusCode();
-            if (status.value() == 401 || status.value() == 403) {
-                log.warn("Sesión txAdmin caducada ({}), re-autenticando...", status.value());
+            // Si me da 401 o 403 es que la sesion caduco
+            int statusCode = e.getStatusCode().value();
+            if (statusCode == 401 || statusCode == 403) {
+                log.warn("Sesion txAdmin caducada ({}), re-autenticando...", statusCode);
                 invalidateSession();
+
+                // Reintento una vez con sesion nueva
                 try {
                     ensureAuthenticated();
                     postKick(license, reason);
                     result.put("success", true);
                     result.put("license", license);
                 } catch (Exception ex) {
-                    String msg = ex.getMessage() != null ? ex.getMessage() : "Error tras re-autenticación";
+                    String msg = ex.getMessage() != null ? ex.getMessage() : "Error tras re-autenticacion";
                     log.error("Error al expulsar {} tras re-auth:", license, ex);
                     result.put("success", false);
                     result.put("error", msg);
@@ -118,24 +124,20 @@ public class FXServerService {
                 result.put("error", msg);
             }
         } catch (Exception e) {
+            // Cualquier otro error
             String msg = e.getMessage() != null ? e.getMessage() : "Error desconocido";
             log.error("Error al expulsar {}:", license, e);
             result.put("success", false);
             result.put("error", msg);
         }
+
         return result;
     }
 
-    /**
-     * Banea a un jugador usando la API de txAdmin.
-     *
-     * @param license  Hash de licencia sin prefijo (ej: 04a66f575d...)
-     * @param reason   Motivo del ban
-     * @param duration Duración: "permanent", "1 hour", "1 day", "1 week", "1
-     *                 month", etc.
-     */
+    // Banea a un jugador (misma logica que el kick pero con duracion)
     public Map<String, Object> banPlayer(String license, String reason, String duration) {
         Map<String, Object> result = new LinkedHashMap<>();
+
         try {
             ensureAuthenticated();
             postBan(license, reason, duration);
@@ -143,10 +145,11 @@ public class FXServerService {
             result.put("license", license);
             result.put("duration", duration);
         } catch (HttpClientErrorException e) {
-            HttpStatusCode status = e.getStatusCode();
-            if (status.value() == 401 || status.value() == 403) {
-                log.warn("Sesión txAdmin caducada ({}), re-autenticando...", status.value());
+            int statusCode = e.getStatusCode().value();
+            if (statusCode == 401 || statusCode == 403) {
+                log.warn("Sesion txAdmin caducada ({}), re-autenticando...", statusCode);
                 invalidateSession();
+
                 try {
                     ensureAuthenticated();
                     postBan(license, reason, duration);
@@ -154,7 +157,7 @@ public class FXServerService {
                     result.put("license", license);
                     result.put("duration", duration);
                 } catch (Exception ex) {
-                    String msg = ex.getMessage() != null ? ex.getMessage() : "Error tras re-autenticación";
+                    String msg = ex.getMessage() != null ? ex.getMessage() : "Error tras re-autenticacion";
                     log.error("Error al banear {} tras re-auth:", license, ex);
                     result.put("success", false);
                     result.put("error", msg);
@@ -171,13 +174,12 @@ public class FXServerService {
             result.put("success", false);
             result.put("error", msg);
         }
+
         return result;
     }
 
-    // =========================================================================
-    // Autenticación txAdmin (sesión + CSRF)
-    // =========================================================================
-
+    // Se asegura de que estamos logueados en txAdmin
+    // Si no hay sesion, llama a authenticate() (sincronizado para evitar varias autenticaciones a la vez)
     private void ensureAuthenticated() {
         if (sessionCookie == null || csrfToken == null) {
             synchronized (this) {
@@ -188,46 +190,54 @@ public class FXServerService {
         }
     }
 
+    // Borra la sesion guardada para forzar un nuevo login
     private synchronized void invalidateSession() {
         sessionCookie = null;
         csrfToken = null;
     }
 
-    /**
-     * Autenticación en dos pasos contra txAdmin v8:
-     *
-     * Paso 1 — POST /auth/password → obtiene la cookie de sesión
-     * (tx:<hash>=<UUID>).
-     * Paso 2 — GET / → extrae el token CSRF real desde:
-     * window.txConsts.preAuth.csrfToken (embebido en el HTML del SPA)
-     */
+    // Hace login en txAdmin en dos pasos
+    // 1) POST /auth/password para conseguir la cookie de sesion
+    // 2) GET / para sacar el token CSRF que viene incrustado en el HTML
     private void authenticate() {
-        // Paso 1: credenciales → cookie de sesión
+        // PASO 1: login con usuario y contrasena
         String authUrl = config.getTxAdminBaseUrl() + "/auth/password";
 
         HttpHeaders authHeaders = new HttpHeaders();
         authHeaders.setContentType(MediaType.APPLICATION_JSON);
 
+        // Preparo el body con las credenciales
+        Map<String, Object> credenciales = new HashMap<>();
+        credenciales.put("username", config.getTxAdminUsername());
+        credenciales.put("password", config.getTxAdminPassword());
+
         ResponseEntity<String> authResponse = restTemplate.exchange(
-                authUrl, HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "username", config.getTxAdminUsername(),
-                        "password", config.getTxAdminPassword()), authHeaders),
+                authUrl,
+                HttpMethod.POST,
+                new HttpEntity<>(credenciales, authHeaders),
                 String.class);
 
+        // Saco las cookies de la respuesta
         List<String> setCookieHeaders = authResponse.getHeaders().get(HttpHeaders.SET_COOKIE);
         if (setCookieHeaders == null || setCookieHeaders.isEmpty()) {
             throw new RuntimeException(
-                    "txAdmin no devolvió cookie de sesión. Verifica usuario/contraseña y la URL del panel.");
+                    "txAdmin no devolvio cookie de sesion. Comprueba usuario/contrasena y la URL del panel.");
         }
 
-        sessionCookie = setCookieHeaders.stream()
-                .map(c -> c.split(";")[0])
-                .collect(Collectors.joining("; "));
+        // Junto todas las cookies en una sola string
+        StringBuilder cookies = new StringBuilder();
+        for (int i = 0; i < setCookieHeaders.size(); i++) {
+            String parteCookie = setCookieHeaders.get(i).split(";")[0];
+            if (i > 0) {
+                cookies.append("; ");
+            }
+            cookies.append(parteCookie);
+        }
+        sessionCookie = cookies.toString();
 
-        log.info("txAdmin: sesión obtenida → {}", sessionCookie);
+        log.info("txAdmin: sesion obtenida -> {}", sessionCookie);
 
-        // Paso 2: GET / con la sesión → extraer csrfToken de window.txConsts
+        // PASO 2: GET / para sacar el csrfToken del HTML
         HttpHeaders getHeaders = new HttpHeaders();
         getHeaders.set(HttpHeaders.COOKIE, sessionCookie);
 
@@ -239,75 +249,69 @@ public class FXServerService {
 
         String html = pageResponse.getBody();
         if (html == null) {
-            throw new RuntimeException("txAdmin devolvió body vacío al intentar obtener el CSRF.");
+            throw new RuntimeException("txAdmin devolvio body vacio al intentar obtener el CSRF.");
         }
 
-        // Busca: "csrfToken":"OYrwONqLzYCbNfVm_nrsn"
+        // Busco el csrfToken con una expresion regular
+        // El HTML trae algo como: "csrfToken":"OYrwONqLzYCbNfVm_nrsn"
         Matcher m = Pattern.compile("\"csrfToken\":\"([^\"]+)\"").matcher(html);
         if (!m.find()) {
+            int max = Math.min(html.length(), 200);
             throw new RuntimeException(
-                    "No se encontró csrfToken en window.txConsts. " +
-                            "¿La sesión es válida? Body (200 chars): " +
-                            html.substring(0, Math.min(html.length(), 200)));
+                    "No se encontro csrfToken en window.txConsts. " +
+                            "Sesion valida? Body (200 chars): " + html.substring(0, max));
         }
 
         csrfToken = m.group(1);
-        log.info("txAdmin: CSRF token extraído → {}", csrfToken);
+        log.info("txAdmin: CSRF token extraido -> {}", csrfToken);
     }
 
-    // =========================================================================
-    // Llamada a la API de kick
-    // =========================================================================
-
-    /**
-     * POST /player/kick?license=<hash> (txAdmin v8).
-     *
-     * El CSRF token se obtiene FRESCO justo antes del POST para evitar tokens
-     * obsoletos.
-     * Flujo: GET / → extraer csrfToken → POST /player/kick
-     */
+    // Hace el POST a /player/kick de txAdmin
+    // Antes pide un CSRF fresco porque el viejo a veces no vale
     private void postKick(String license, String reason) {
-
-        // Obtener CSRF fresco en el mismo instante del kick
+        // Pido un CSRF nuevo justo antes
         String freshCsrf = fetchFreshCsrf();
         log.info("CSRF fresco para kick: {}", freshCsrf);
 
+        // Monto la URL
         String url = config.getTxAdminBaseUrl() + "/player/kick?license=" + license;
 
+        // Preparo las cabeceras
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(HttpHeaders.COOKIE, sessionCookie);
-        headers.set("x-txadmin-csrftoken", freshCsrf); // nombre exacto que usa txAdmin v8
+        // Nombre exacto que espera txAdmin v8
+        headers.set("x-txadmin-csrftoken", freshCsrf);
         headers.set("X-Requested-With", "XMLHttpRequest");
 
+        // Body con el motivo
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("reason", reason);
 
-        ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers),
+        // Hago el POST
+        ResponseEntity<String> resp = restTemplate.exchange(
+                url, HttpMethod.POST,
+                new HttpEntity<>(body, headers),
                 String.class);
 
+        // Imprimo lo que devolvio para depurar
         String respBody = resp.getBody() != null ? resp.getBody() : "";
-        log.info("txAdmin kick — license={} status={} body={}",
-                license, resp.getStatusCode(),
-                respBody.substring(0, Math.min(respBody.length(), 300)));
+        int maxLog = Math.min(respBody.length(), 300);
+        log.info("txAdmin kick - license={} status={} body={}",
+                license, resp.getStatusCode(), respBody.substring(0, maxLog));
 
-        if (respBody.trim().startsWith("<!doctype") || respBody.trim().startsWith("<html")) {
+        // Si me devuelve HTML es que algo salio mal con el CSRF o la sesion
+        String trimmed = respBody.trim();
+        if (trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")) {
             throw new RuntimeException(
-                    "txAdmin devolvió HTML — CSRF o sesión inválidos. CSRF usado: " + freshCsrf);
+                    "txAdmin devolvio HTML - CSRF o sesion invalidos. CSRF usado: " + freshCsrf);
         }
     }
 
-    /**
-     * Hace GET / con la sesión activa y extrae el csrfToken fresco de
-     * window.txConsts.
-     * También actualiza sessionCookie si txAdmin renueva la cookie de sesión.
-     */
-
-    /**
-     * POST /player/ban?license=<hash> (txAdmin v8).
-     */
+    // Hace el POST a /player/ban de txAdmin (parecido al kick pero con duracion)
     private void postBan(String license, String reason, String duration) {
         String url = config.getTxAdminBaseUrl() + "/player/ban?license=" + license;
+
         String freshCsrf = fetchFreshCsrf();
         log.info("CSRF fresco para ban: {}", freshCsrf);
 
@@ -321,19 +325,24 @@ public class FXServerService {
         body.put("reason", reason);
         body.put("duration", duration);
 
-        ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers),
+        ResponseEntity<String> resp = restTemplate.exchange(
+                url, HttpMethod.POST,
+                new HttpEntity<>(body, headers),
                 String.class);
 
         String respBody = resp.getBody() != null ? resp.getBody() : "";
-        log.info("txAdmin ban — license={} duration={} status={} body={}",
-                license, duration, resp.getStatusCode(),
-                respBody.substring(0, Math.min(respBody.length(), 300)));
+        int maxLog = Math.min(respBody.length(), 300);
+        log.info("txAdmin ban - license={} duration={} status={} body={}",
+                license, duration, resp.getStatusCode(), respBody.substring(0, maxLog));
 
-        if (respBody.trim().startsWith("<!doctype") || respBody.trim().startsWith("<html")) {
-            throw new RuntimeException("txAdmin devolvió HTML — CSRF o sesión inválidos.");
+        String trimmed = respBody.trim();
+        if (trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")) {
+            throw new RuntimeException("txAdmin devolvio HTML - CSRF o sesion invalidos.");
         }
     }
 
+    // Hace GET / con la sesion activa y saca un csrfToken nuevo del HTML
+    // Si txAdmin renueva la cookie, la actualizo tambien
     private String fetchFreshCsrf() {
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.COOKIE, sessionCookie);
@@ -344,50 +353,48 @@ public class FXServerService {
                 new HttpEntity<>(headers),
                 String.class);
 
-        // Actualizar sessionCookie si txAdmin renovó la cookie
+        // Si me llegan cookies nuevas, las guardo
         List<String> newCookies = resp.getHeaders().get(HttpHeaders.SET_COOKIE);
         if (newCookies != null && !newCookies.isEmpty()) {
-            sessionCookie = newCookies.stream()
-                    .map(c -> c.split(";")[0])
-                    .collect(Collectors.joining("; "));
-            log.info("txAdmin: cookie de sesión renovada → {}", sessionCookie);
+            StringBuilder cookies = new StringBuilder();
+            for (int i = 0; i < newCookies.size(); i++) {
+                String parteCookie = newCookies.get(i).split(";")[0];
+                if (i > 0) {
+                    cookies.append("; ");
+                }
+                cookies.append(parteCookie);
+            }
+            sessionCookie = cookies.toString();
+            log.info("txAdmin: cookie de sesion renovada -> {}", sessionCookie);
         }
 
         String html = resp.getBody();
-        if (html == null)
-            throw new RuntimeException("txAdmin devolvió body vacío en GET /");
+        if (html == null) {
+            throw new RuntimeException("txAdmin devolvio body vacio en GET /");
+        }
 
+        // Saco el csrfToken con regex
         Matcher m = Pattern.compile("\"csrfToken\":\"([^\"]+)\"").matcher(html);
-        if (!m.find())
+        if (!m.find()) {
             throw new RuntimeException("csrfToken no encontrado en window.txConsts");
+        }
+
         return m.group(1);
     }
 
-    // =========================================================================
-    // Búsqueda de licencia por Discord ID (txAdmin players/search)
-    // =========================================================================
-
-    /**
-     * Busca en txAdmin la licencia FiveM (license:...) asociada a un Discord ID.
-     *
-     * txAdmin devuelve una lista de jugadores. Iteramos sus identificadores
-     * hasta encontrar el que empieza por "license:".
-     *
-     * @param discordId ID numérico de Discord (sin prefijo "discord:")
-     * @return El identificador completo "license:xxxx"
-     * @throws PlayerNotFoundException si ningún jugador tiene ese Discord ID
-     * @throws RuntimeException        si la respuesta de txAdmin no es parseable
-     */
+    // Busca la licencia FiveM de un jugador a partir de su ID de Discord
+    // Usa el endpoint /player/search de txAdmin
     @SuppressWarnings("unchecked")
     public String findLicenseByDiscordId(String discordId) {
         ensureAuthenticated();
 
-        // txAdmin v8: /player/search con searchType=playerIds
+        // Monto la URL de busqueda en txAdmin v8
         String url = config.getTxAdminBaseUrl()
                 + "/player/search?sortingKey=tsJoined&sortingDesc=true"
                 + "&searchValue=discord:" + discordId
                 + "&searchType=playerIds";
 
+        // Cabeceras con sesion y CSRF
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.COOKIE, sessionCookie);
         headers.set("x-txadmin-csrftoken", csrfToken);
@@ -395,10 +402,13 @@ public class FXServerService {
 
         ResponseEntity<String> resp;
         try {
+            // Hago la peticion
             resp = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
-                log.warn("Sesión txAdmin caducada al buscar Discord {}, re-autenticando...", discordId);
+            // Si me da 401/403, reintento con sesion nueva
+            int statusCode = e.getStatusCode().value();
+            if (statusCode == 401 || statusCode == 403) {
+                log.warn("Sesion txAdmin caducada al buscar Discord {}, re-autenticando...", discordId);
                 invalidateSession();
                 ensureAuthenticated();
                 headers.set(HttpHeaders.COOKIE, sessionCookie);
@@ -409,34 +419,35 @@ public class FXServerService {
             }
         }
 
+        // Compruebo que la respuesta no sea nula
         String body = resp.getBody();
         if (body == null || body.isBlank()) {
-            throw new RuntimeException("txAdmin devolvió respuesta vacía para discordId=" + discordId);
+            throw new RuntimeException("txAdmin devolvio respuesta vacia para discordId=" + discordId);
         }
 
+        // Parseo el JSON
         Map<String, Object> parsed;
         try {
-            parsed = objectMapper.readValue(body, new TypeReference<>() {
-            });
+            parsed = objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             throw new RuntimeException("Error al parsear respuesta de txAdmin: " + e.getMessage());
         }
 
-        // txAdmin v8 devuelve: { "players": [ { "license": "04a66f...", "displayName":
-        // "...", ... } ] }
-        // El campo "license" es el hash sin prefijo — añadimos "license:" al devolver
+        // txAdmin devuelve { "players": [ { "license": "abc..." } ] }
         List<Map<String, Object>> players = (List<Map<String, Object>>) parsed.get("players");
 
         if (players == null || players.isEmpty()) {
-            throw new PlayerNotFoundException("No se encontró ningún jugador con Discord ID: " + discordId);
+            throw new PlayerNotFoundException("No se encontro ningun jugador con Discord ID: " + discordId);
         }
 
+        // Cojo el primero
         String licenseHash = (String) players.get(0).get("license");
         if (licenseHash == null || licenseHash.isBlank()) {
             throw new PlayerNotFoundException(
                     "El jugador encontrado no tiene licencia FiveM en txAdmin (discordId=" + discordId + ")");
         }
 
+        // Le anado el prefijo "license:" y lo devuelvo
         return "license:" + licenseHash;
     }
 }

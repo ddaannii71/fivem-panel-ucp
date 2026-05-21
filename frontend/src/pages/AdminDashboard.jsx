@@ -1,18 +1,34 @@
+// Dashboard de administrador
+// Permite buscar jugadores y modificar su economia, inventario, vehiculos, posicion
+// Tambien permite expulsar o banear
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const getToken = () => localStorage.getItem('jwt');
-const authHeader = () => ({ headers: { Authorization: `Bearer ${getToken()}` } });
+// --- Funciones auxiliares ---
 
-const getLicenseHash = (identifier) => {
-  const colonIdx = identifier?.indexOf(':');
-  return colonIdx !== -1 ? identifier.slice(colonIdx + 1) : identifier;
+// Coge el token JWT de localStorage
+const getToken = () => localStorage.getItem('jwt');
+
+// Devuelve el objeto de configuracion para axios con el token en el header
+const authHeader = () => {
+  return { headers: { Authorization: `Bearer ${getToken()}` } };
 };
 
-// ─── Sub-component: Search Tabs ───────────────────────────────────────────────
+// Saca el hash de la licencia desde el identifier ("char1:abc..." -> "abc...")
+const getLicenseHash = (identifier) => {
+  if (!identifier) return identifier;
+  const colonIdx = identifier.indexOf(':');
+  if (colonIdx !== -1) {
+    return identifier.slice(colonIdx + 1);
+  }
+  return identifier;
+};
+
+// --- Panel de busqueda ---
+// Permite buscar jugadores por nombre, trabajo, grupo o Discord ID
 function SearchPanel({ onResults, showAlert }) {
+  // Estado de la pestana activa y los inputs de cada una
   const [tab, setTab] = useState('name');
   const [nameQuery, setNameQuery] = useState('');
   const [jobQuery, setJobQuery] = useState('');
@@ -20,13 +36,23 @@ function SearchPanel({ onResults, showAlert }) {
   const [discordQuery, setDiscordQuery] = useState('');
   const [searching, setSearching] = useState(false);
 
+  // Hace la busqueda segun la pestana activa
   const search = async () => {
     setSearching(true);
     try {
       let res;
+
+      // Segun la pestana, llamo a un endpoint diferente
       if (tab === 'name') {
         res = await axios.get(`/player-service/players/search?name=${encodeURIComponent(nameQuery)}`, authHeader());
-        onResults(Array.isArray(res.data) ? res.data : [res.data].filter(Boolean));
+        // Si llega un objeto en vez de array, lo meto en un array
+        if (Array.isArray(res.data)) {
+          onResults(res.data);
+        } else if (res.data) {
+          onResults([res.data]);
+        } else {
+          onResults([]);
+        }
       } else if (tab === 'job') {
         res = await axios.get(`/player-service/players/job/${encodeURIComponent(jobQuery)}`, authHeader());
         onResults(Array.isArray(res.data) ? res.data : []);
@@ -35,47 +61,57 @@ function SearchPanel({ onResults, showAlert }) {
         onResults(Array.isArray(res.data) ? res.data : []);
       } else if (tab === 'discord') {
         res = await axios.get(`/mgmt-service/players/discord/${encodeURIComponent(discordQuery)}`, authHeader());
-        // returns single player or {license}
-        const data = res.data;
-        onResults(data ? [data] : []);
+        // El endpoint discord devuelve un objeto, no un array
+        if (res.data) {
+          onResults([res.data]);
+        } else {
+          onResults([]);
+        }
       }
-    } catch {
-      showAlert('No se encontraron resultados o error en la búsqueda.', 'warning');
+    } catch (e) {
+      showAlert('No se encontraron resultados o error en la busqueda.', 'warning');
       onResults([]);
     } finally {
       setSearching(false);
     }
   };
 
-  const tabStyle = (t) => ({
-    background: tab === t ? 'rgba(0,209,255,0.15)' : 'transparent',
-    color: tab === t ? '#00d1ff' : '#94a3b8',
-    border: 'none',
-    borderBottom: tab === t ? '2px solid #00d1ff' : '2px solid transparent',
-    padding: '6px 12px',
-    fontSize: '0.75rem',
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  });
+  // Estilo de los botones de pestana
+  const tabStyle = (t) => {
+    const isActive = tab === t;
+    return {
+      background: isActive ? 'rgba(0,209,255,0.15)' : 'transparent',
+      color: isActive ? '#00d1ff' : '#94a3b8',
+      border: 'none',
+      borderBottom: isActive ? '2px solid #00d1ff' : '2px solid transparent',
+      padding: '6px 12px',
+      fontSize: '0.75rem',
+      fontWeight: 'bold',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+    };
+  };
+
+  // Lista de pestanas que se renderizan
+  const tabs = [
+    { key: 'name', label: 'Nombre' },
+    { key: 'job', label: 'Trabajo' },
+    { key: 'group', label: 'Grupo' },
+    { key: 'discord', label: 'Discord' },
+  ];
 
   return (
     <div>
-      {/* Tabs */}
+      {/* Botones de pestana */}
       <div className="d-flex border-bottom mb-3" style={{ borderColor: 'rgba(60,73,78,0.3) !important' }}>
-        {[
-          { key: 'name', label: 'Nombre' },
-          { key: 'job', label: 'Trabajo' },
-          { key: 'group', label: 'Grupo' },
-          { key: 'discord', label: 'Discord' },
-        ].map(({ key, label }) => (
-          <button key={key} style={tabStyle(key)} onClick={() => setTab(key)}>{label}</button>
+        {tabs.map((t) => (
+          <button key={t.key} style={tabStyle(t.key)} onClick={() => setTab(t.key)}>{t.label}</button>
         ))}
       </div>
 
-      {/* Input */}
+      {/* Input de busqueda segun pestana */}
       <div className="d-flex gap-2">
         {tab === 'name' && (
           <input
@@ -123,68 +159,85 @@ function SearchPanel({ onResults, showAlert }) {
           className="btn btn-sm px-3"
           style={{ background: 'linear-gradient(to right,#0356ff,#00d1ff)', color: 'white', border: 'none', fontSize: '0.75rem' }}
         >
-          {searching ? <span className="spinner-border spinner-border-sm" /> : <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>search</span>}
+          {searching
+            ? <span className="spinner-border spinner-border-sm" />
+            : <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>search</span>}
         </button>
       </div>
     </div>
   );
 }
 
-// ─── Sub-component: Economy Editor ───────────────────────────────────────────
+// --- Editor de economia ---
+// Permite cambiar el efectivo, banco y dinero sucio de un jugador
 function EconomyEditor({ player, showAlert, onUpdated }) {
   const [cash, setCash] = useState(0);
   const [bank, setBank] = useState(0);
   const [blackMoney, setBlackMoney] = useState(0);
   const [saving, setSaving] = useState(false);
 
+  // Cuando cambia el jugador, parseo su JSON de accounts y relleno los inputs
   useEffect(() => {
     let acc = {};
-    try { acc = JSON.parse(player?.accounts || '{}'); } catch { }
+    try {
+      acc = JSON.parse(player?.accounts || '{}');
+    } catch (e) {
+      // si falla el parse dejo el objeto vacio
+    }
     setCash(acc.money || 0);
     setBank(acc.bank || 0);
     setBlackMoney(acc.black_money || 0);
   }, [player]);
 
+  // Guarda los cambios en el backend
   const handleSave = async () => {
     setSaving(true);
     try {
-      await axios.put(`/player-service/players/${player.identifier}/economy`, {
+      // Monto el body con los numeros convertidos
+      const body = {
         money: Number(cash),
         bank: Number(bank),
         black_money: Number(blackMoney),
-      }, authHeader());
-      showAlert('Economía actualizada correctamente', 'success');
-      onUpdated({ ...player, accounts: JSON.stringify({ money: Number(cash), bank: Number(bank), black_money: Number(blackMoney) }) });
-    } catch {
-      showAlert('Error al actualizar la economía', 'danger');
+      };
+      await axios.put(`/player-service/players/${player.identifier}/economy`, body, authHeader());
+      showAlert('Economia actualizada correctamente', 'success');
+
+      // Actualizo el jugador en el padre para que se vea el cambio
+      const playerActualizado = { ...player, accounts: JSON.stringify(body) };
+      onUpdated(playerActualizado);
+    } catch (e) {
+      showAlert('Error al actualizar la economia', 'danger');
     } finally {
       setSaving(false);
     }
   };
+
+  // Configuracion de los 3 inputs de dinero
+  const campos = [
+    { label: 'Efectivo', value: cash, setter: setCash, color: '#00d1ff' },
+    { label: 'Banco', value: bank, setter: setBank, color: '#dee3ea' },
+    { label: 'Dinero Sucio', value: blackMoney, setter: setBlackMoney, color: '#ffb4ab' },
+  ];
 
   return (
     <div className="glass-panel p-4 position-relative">
       <div className="position-absolute start-0 top-0 bottom-0" style={{ width: '4px', backgroundColor: '#0356ff', borderRadius: '4px 0 0 4px' }} />
       <div className="d-flex align-items-center gap-2 mb-3">
         <span className="material-symbols-outlined" style={{ color: '#0356ff' }}>account_balance</span>
-        <h3 className="m-0 fs-6 fw-bold text-white text-uppercase" style={{ letterSpacing: '0.05em' }}>Editor de Economía</h3>
+        <h3 className="m-0 fs-6 fw-bold text-white text-uppercase" style={{ letterSpacing: '0.05em' }}>Editor de Economia</h3>
       </div>
       <div className="row g-3">
-        {[
-          { label: 'Efectivo', value: cash, setter: setCash, color: '#00d1ff' },
-          { label: 'Banco', value: bank, setter: setBank, color: '#dee3ea' },
-          { label: 'Dinero Sucio', value: blackMoney, setter: setBlackMoney, color: '#ffb4ab' },
-        ].map(({ label, value, setter, color }) => (
-          <div className="col-md-4" key={label}>
-            <label className="text-secondary text-uppercase d-block mb-1" style={{ fontSize: '0.65rem', letterSpacing: '0.1em' }}>{label}</label>
+        {campos.map((campo) => (
+          <div className="col-md-4" key={campo.label}>
+            <label className="text-secondary text-uppercase d-block mb-1" style={{ fontSize: '0.65rem', letterSpacing: '0.1em' }}>{campo.label}</label>
             <div className="position-relative">
               <span className="position-absolute" style={{ left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#3c494e' }}>$</span>
               <input
                 type="number"
                 className="form-control input-custom py-2"
-                style={{ paddingLeft: '1.5rem', fontFamily: 'monospace', fontSize: '0.875rem', color }}
-                value={value}
-                onChange={e => setter(e.target.value)}
+                style={{ paddingLeft: '1.5rem', fontFamily: 'monospace', fontSize: '0.875rem', color: campo.color }}
+                value={campo.value}
+                onChange={e => campo.setter(e.target.value)}
               />
             </div>
           </div>
@@ -192,7 +245,9 @@ function EconomyEditor({ player, showAlert, onUpdated }) {
       </div>
       <div className="mt-3 d-flex justify-content-end">
         <button onClick={handleSave} disabled={saving} className="btn btn-sm px-4 py-2 fw-bold d-flex align-items-center gap-2" style={{ background: 'linear-gradient(to right,#0356ff,#00d1ff)', color: 'white', border: 'none' }}>
-          {saving ? <span className="spinner-border spinner-border-sm" /> : <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>save</span>}
+          {saving
+            ? <span className="spinner-border spinner-border-sm" />
+            : <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>save</span>}
           Guardar
         </button>
       </div>
@@ -200,7 +255,8 @@ function EconomyEditor({ player, showAlert, onUpdated }) {
   );
 }
 
-// ─── Sub-component: Inventory Manager ────────────────────────────────────────
+// --- Gestor de inventario ---
+// Permite ver, anadir, quitar y vaciar items del inventario
 function InventoryManager({ player, showAlert }) {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -208,53 +264,64 @@ function InventoryManager({ player, showAlert }) {
   const [newCount, setNewCount] = useState(1);
   const [adding, setAdding] = useState(false);
 
+  // Carga el inventario del jugador
   const fetchInventory = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get(`/player-service/players/${player.identifier}/inventory`, authHeader());
       setInventory(Array.isArray(res.data) ? res.data : []);
-    } catch {
+    } catch (e) {
       setInventory([]);
     } finally {
       setLoading(false);
     }
   }, [player.identifier]);
 
-  useEffect(() => { fetchInventory(); }, [fetchInventory]);
+  // Cargo el inventario al cambiar de jugador
+  useEffect(() => {
+    fetchInventory();
+  }, [fetchInventory]);
 
+  // Anade un item nuevo al inventario
   const handleAddItem = async () => {
     if (!newItem.trim()) return;
     setAdding(true);
     try {
-      await axios.post(`/player-service/players/${player.identifier}/inventory/${encodeURIComponent(newItem.trim())}?count=${newCount}`, {}, authHeader());
-      showAlert(`Item "${newItem}" añadido`, 'success');
+      const url = `/player-service/players/${player.identifier}/inventory/${encodeURIComponent(newItem.trim())}?count=${newCount}`;
+      await axios.post(url, {}, authHeader());
+      showAlert(`Item "${newItem}" anadido`, 'success');
       setNewItem('');
       setNewCount(1);
       fetchInventory();
-    } catch {
-      showAlert('Error al añadir el item', 'danger');
+    } catch (e) {
+      showAlert('Error al anadir el item', 'danger');
     } finally {
       setAdding(false);
     }
   };
 
+  // Quita un item por su nombre
   const handleRemoveItem = async (itemName) => {
     try {
-      await axios.delete(`/player-service/players/${player.identifier}/inventory/${encodeURIComponent(itemName)}`, authHeader());
+      const url = `/player-service/players/${player.identifier}/inventory/${encodeURIComponent(itemName)}`;
+      await axios.delete(url, authHeader());
       showAlert(`Item "${itemName}" eliminado`, 'success');
       fetchInventory();
-    } catch {
+    } catch (e) {
       showAlert('Error al eliminar el item', 'danger');
     }
   };
 
+  // Vacia el inventario entero (con confirmacion)
   const handleClearInventory = async () => {
-    if (!window.confirm('¿Vaciar el inventario completo?')) return;
+    const confirma = window.confirm('Vaciar el inventario completo?');
+    if (!confirma) return;
+
     try {
       await axios.put(`/player-service/players/${player.identifier}/inventory`, [], authHeader());
       showAlert('Inventario vaciado', 'success');
       setInventory([]);
-    } catch {
+    } catch (e) {
       showAlert('Error al vaciar el inventario', 'danger');
     }
   };
@@ -278,7 +345,7 @@ function InventoryManager({ player, showAlert }) {
         </button>
       </div>
 
-      {/* Add item form */}
+      {/* Formulario para anadir items */}
       <div className="d-flex gap-2 mb-3">
         <input
           type="text"
@@ -303,11 +370,13 @@ function InventoryManager({ player, showAlert }) {
           className="btn btn-sm px-3"
           style={{ background: 'rgba(0,209,255,0.15)', color: '#00d1ff', border: '1px solid rgba(0,209,255,0.3)', fontSize: '0.75rem' }}
         >
-          {adding ? <span className="spinner-border spinner-border-sm" /> : <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>add</span>}
+          {adding
+            ? <span className="spinner-border spinner-border-sm" />
+            : <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>add</span>}
         </button>
       </div>
 
-      {/* Item list */}
+      {/* Lista de items */}
       <div className="custom-scrollbar overflow-auto" style={{ maxHeight: '180px' }}>
         {loading ? (
           <div className="text-center py-3"><span className="spinner-border spinner-border-sm text-info" /></div>
@@ -334,42 +403,55 @@ function InventoryManager({ player, showAlert }) {
             ))}
           </div>
         ) : (
-          <div className="text-center text-secondary py-3 small">El inventario está vacío</div>
+          <div className="text-center text-secondary py-3 small">El inventario esta vacio</div>
         )}
       </div>
     </div>
   );
 }
 
-// ─── Sub-component: Vehicle Manager ──────────────────────────────────────────
+// --- Gestor de vehiculos ---
+// Permite ver los vehiculos del jugador y guardarlos/sacarlos del garaje
 function VehicleManager({ player, showAlert }) {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Carga los vehiculos del jugador
   const fetchVehicles = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axios.get(`/player-service/players/${player.identifier}/vehicles`, authHeader());
       setVehicles(Array.isArray(res.data) ? res.data : []);
-    } catch {
+    } catch (e) {
       setVehicles([]);
     } finally {
       setLoading(false);
     }
   }, [player.identifier]);
 
-  useEffect(() => { fetchVehicles(); }, [fetchVehicles]);
+  // Recarga los vehiculos al cambiar de jugador
+  useEffect(() => {
+    fetchVehicles();
+  }, [fetchVehicles]);
 
+  // Alterna el estado de un vehiculo (guardado o fuera)
   const handlePatchVehicle = async (plate, currentStored) => {
     const newStored = !currentStored;
+
+    // Monto el body
     const body = { stored: newStored };
-    if (newStored) body.parking = 'SanAndreasAvenue';
+    if (newStored) {
+      // Si lo guardo, le pongo un parking por defecto
+      body.parking = 'SanAndreasAvenue';
+    }
+
     try {
-      await axios.patch(`/player-service/players/${player.identifier}/vehicles/${encodeURIComponent(plate)}`, body, authHeader());
-      showAlert(`Vehículo ${plate} actualizado`, 'success');
+      const url = `/player-service/players/${player.identifier}/vehicles/${encodeURIComponent(plate)}`;
+      await axios.patch(url, body, authHeader());
+      showAlert(`Vehiculo ${plate} actualizado`, 'success');
       fetchVehicles();
-    } catch {
-      showAlert('Error al actualizar el vehículo', 'danger');
+    } catch (e) {
+      showAlert('Error al actualizar el vehiculo', 'danger');
     }
   };
 
@@ -379,7 +461,7 @@ function VehicleManager({ player, showAlert }) {
       <div className="d-flex align-items-center gap-2 mb-3">
         <span className="material-symbols-outlined text-secondary">directions_car</span>
         <h3 className="m-0 fs-6 fw-bold text-white text-uppercase" style={{ letterSpacing: '0.05em' }}>Gestor de Flota</h3>
-        <span className="badge" style={{ backgroundColor: 'rgba(148,163,184,0.1)', color: '#94a3b8', fontSize: '0.65rem' }}>{vehicles.length} VEHÍCULOS</span>
+        <span className="badge" style={{ backgroundColor: 'rgba(148,163,184,0.1)', color: '#94a3b8', fontSize: '0.65rem' }}>{vehicles.length} VEHICULOS</span>
       </div>
       {loading ? (
         <div className="text-center py-3"><span className="spinner-border spinner-border-sm text-info" /></div>
@@ -389,10 +471,10 @@ function VehicleManager({ player, showAlert }) {
             <table className="table table-borderless mb-0 small align-middle" style={{ color: '#dee3ea' }}>
               <thead style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 <tr>
-                  <th className="py-1 px-2">Matrícula</th>
+                  <th className="py-1 px-2">Matricula</th>
                   <th className="py-1 px-2">Modelo</th>
                   <th className="py-1 px-2 text-center">Estado</th>
-                  <th className="py-1 px-2 text-end">Acción</th>
+                  <th className="py-1 px-2 text-end">Accion</th>
                 </tr>
               </thead>
               <tbody>
@@ -421,7 +503,7 @@ function VehicleManager({ player, showAlert }) {
               </tbody>
             </table>
           ) : (
-            <div className="text-center text-secondary py-3 small">No hay vehículos registrados</div>
+            <div className="text-center text-secondary py-3 small">No hay vehiculos registrados</div>
           )}
         </div>
       )}
@@ -429,7 +511,8 @@ function VehicleManager({ player, showAlert }) {
   );
 }
 
-// ─── Sub-component: Position Control ─────────────────────────────────────────
+// --- Control de posicion ---
+// Permite teletransportar al jugador a unas coordenadas
 function PositionControl({ player, showAlert }) {
   const [x, setX] = useState('');
   const [y, setY] = useState('');
@@ -437,6 +520,7 @@ function PositionControl({ player, showAlert }) {
   const [heading, setHeading] = useState('0');
   const [saving, setSaving] = useState(false);
 
+  // Cuando cambia el jugador, leo su posicion actual y la pongo en los inputs
   useEffect(() => {
     try {
       const pos = JSON.parse(player?.position || '{}');
@@ -444,26 +528,41 @@ function PositionControl({ player, showAlert }) {
       setY(pos.y ?? '');
       setZ(pos.z ?? '');
       setHeading(pos.heading ?? '0');
-    } catch {
-      setX(''); setY(''); setZ(''); setHeading('0');
+    } catch (e) {
+      // Si falla el parse, dejo todo vacio
+      setX('');
+      setY('');
+      setZ('');
+      setHeading('0');
     }
   }, [player]);
 
+  // Guarda la nueva posicion
   const handleTeleport = async () => {
-    if (x === '' || y === '' || z === '') { showAlert('Rellena las coordenadas X, Y, Z', 'warning'); return; }
+    // Compruebo que tenga al menos x, y, z
+    if (x === '' || y === '' || z === '') {
+      showAlert('Rellena las coordenadas X, Y, Z', 'warning');
+      return;
+    }
+
     setSaving(true);
     try {
-      await axios.put(`/player-service/players/${player.identifier}/position`, {
-        x: Number(x), y: Number(y), z: Number(z), heading: Number(heading),
-      }, authHeader());
-      showAlert('Posición actualizada correctamente', 'success');
-    } catch {
-      showAlert('Error al actualizar la posición', 'danger');
+      const body = {
+        x: Number(x),
+        y: Number(y),
+        z: Number(z),
+        heading: Number(heading),
+      };
+      await axios.put(`/player-service/players/${player.identifier}/position`, body, authHeader());
+      showAlert('Posicion actualizada correctamente', 'success');
+    } catch (e) {
+      showAlert('Error al actualizar la posicion', 'danger');
     } finally {
       setSaving(false);
     }
   };
 
+  // Helper para renderizar un input de coordenada
   const coordInput = (label, value, setter, color = '#dee3ea') => (
     <div className="col-6 col-md-3">
       <label className="text-secondary text-uppercase d-block mb-1" style={{ fontSize: '0.6rem', letterSpacing: '0.1em' }}>{label}</label>
@@ -483,7 +582,7 @@ function PositionControl({ player, showAlert }) {
       <div className="position-absolute start-0 top-0 bottom-0" style={{ width: '4px', backgroundColor: 'rgba(60,73,78,0.5)', borderRadius: '4px 0 0 4px' }} />
       <div className="d-flex align-items-center gap-2 mb-3">
         <span className="material-symbols-outlined text-secondary">location_on</span>
-        <h3 className="m-0 fs-6 fw-bold text-white text-uppercase" style={{ letterSpacing: '0.05em' }}>Control de Posición</h3>
+        <h3 className="m-0 fs-6 fw-bold text-white text-uppercase" style={{ letterSpacing: '0.05em' }}>Control de Posicion</h3>
       </div>
       <div className="row g-2 align-items-end">
         {coordInput('X', x, setX, '#4cd6ff')}
@@ -497,7 +596,9 @@ function PositionControl({ player, showAlert }) {
             className="btn btn-sm px-4 py-2 fw-bold w-100 d-flex align-items-center justify-content-center gap-2"
             style={{ background: 'rgba(0,209,255,0.1)', color: '#00d1ff', border: '1px solid rgba(0,209,255,0.3)', fontSize: '0.8rem' }}
           >
-            {saving ? <span className="spinner-border spinner-border-sm" /> : <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>near_me</span>}
+            {saving
+              ? <span className="spinner-border spinner-border-sm" />
+              : <span className="material-symbols-outlined" style={{ fontSize: '1rem' }}>near_me</span>}
             Teletransportar
           </button>
         </div>
@@ -506,7 +607,8 @@ function PositionControl({ player, showAlert }) {
   );
 }
 
-// ─── Sub-component: Danger Zone ───────────────────────────────────────────────
+// --- Zona peligrosa ---
+// Permite expulsar (kick) o banear (ban) a un jugador
 function DangerZone({ player, showAlert }) {
   const [kickReason, setKickReason] = useState('');
   const [banReason, setBanReason] = useState('');
@@ -514,37 +616,57 @@ function DangerZone({ player, showAlert }) {
   const [kicking, setKicking] = useState(false);
   const [banning, setBanning] = useState(false);
 
+  // Expulsa al jugador del servidor
   const handleKick = async () => {
     setKicking(true);
     try {
-      await axios.post('/mgmt-service/players/kick', {
+      const body = {
         license: getLicenseHash(player.identifier),
         reason: kickReason.trim() || 'Expulsado desde UCP',
-      }, authHeader());
+      };
+      await axios.post('/mgmt-service/players/kick', body, authHeader());
       showAlert('Jugador expulsado correctamente', 'success');
-    } catch {
+    } catch (e) {
       showAlert('Error al expulsar al jugador', 'danger');
     } finally {
       setKicking(false);
     }
   };
 
+  // Banea al jugador (pide confirmacion primero)
   const handleBan = async () => {
-    if (!window.confirm(`¿Banear a ${[player.firstname, player.lastname].filter(Boolean).join(' ')}?`)) return;
+    // Pido confirmacion porque es algo grave
+    const nombrePartes = [player.firstname, player.lastname].filter(Boolean);
+    const nombreCompleto = nombrePartes.join(' ');
+    const confirma = window.confirm(`Banear a ${nombreCompleto}?`);
+    if (!confirma) return;
+
     setBanning(true);
     try {
-      await axios.post('/mgmt-service/players/ban', {
+      const body = {
         license: getLicenseHash(player.identifier),
         reason: banReason.trim() || 'Baneado desde UCP',
         duration: banDuration,
-      }, authHeader());
+      };
+      await axios.post('/mgmt-service/players/ban', body, authHeader());
       showAlert('Jugador baneado correctamente', 'success');
-    } catch {
+    } catch (e) {
       showAlert('Error al banear al jugador', 'danger');
     } finally {
       setBanning(false);
     }
   };
+
+  // Opciones de duracion del ban
+  const opcionesDuracion = [
+    { value: '1 hour', label: '1 Hora' },
+    { value: '6 hours', label: '6 Horas' },
+    { value: '1 day', label: '1 Dia' },
+    { value: '3 days', label: '3 Dias' },
+    { value: '1 week', label: '1 Semana' },
+    { value: '1 month', label: '1 Mes' },
+    { value: 'permanent', label: 'Permanente' },
+  ];
 
   return (
     <div className="p-4 rounded position-relative" style={{ backgroundColor: 'rgba(147,0,10,0.1)', border: '1px solid rgba(255,180,171,0.2)' }}>
@@ -553,7 +675,7 @@ function DangerZone({ player, showAlert }) {
         <span className="material-symbols-outlined text-error-custom">warning</span>
         <h3 className="m-0 fs-6 fw-bold text-uppercase" style={{ color: '#ffb4ab', letterSpacing: '0.05em' }}>Zona de Peligro</h3>
       </div>
-      <p className="small text-secondary mb-3">Las sanciones son inmediatas e irreversibles. Actúa con responsabilidad.</p>
+      <p className="small text-secondary mb-3">Las sanciones son inmediatas e irreversibles. Actua con responsabilidad.</p>
       <div className="row g-2 mb-3">
         <div className="col-md-6">
           <label className="text-secondary text-uppercase d-block mb-1" style={{ fontSize: '0.65rem', letterSpacing: '0.1em' }}>Motivo del Kick</label>
@@ -577,20 +699,16 @@ function DangerZone({ player, showAlert }) {
         </div>
       </div>
       <div className="mb-3">
-        <label className="text-secondary text-uppercase d-block mb-1" style={{ fontSize: '0.65rem', letterSpacing: '0.1em' }}>Duración del Ban</label>
+        <label className="text-secondary text-uppercase d-block mb-1" style={{ fontSize: '0.65rem', letterSpacing: '0.1em' }}>Duracion del Ban</label>
         <select
           className="form-select form-select-sm"
           style={{ backgroundColor: '#0a0f14', color: '#ffb4ab', border: '1px solid rgba(255,180,171,0.3)' }}
           value={banDuration}
           onChange={e => setBanDuration(e.target.value)}
         >
-          <option value="1 hour">1 Hora</option>
-          <option value="6 hours">6 Horas</option>
-          <option value="1 day">1 Día</option>
-          <option value="3 days">3 Días</option>
-          <option value="1 week">1 Semana</option>
-          <option value="1 month">1 Mes</option>
-          <option value="permanent">Permanente</option>
+          {opcionesDuracion.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
       </div>
       <div className="d-flex flex-column flex-md-row gap-3">
@@ -600,7 +718,9 @@ function DangerZone({ player, showAlert }) {
           className="btn flex-grow-1 py-2 d-flex align-items-center justify-content-center gap-2 fw-semibold"
           style={{ backgroundColor: '#0a0f14', color: '#ffb4ab', border: '1px solid rgba(255,180,171,0.3)', fontSize: '0.875rem' }}
         >
-          {kicking ? <span className="spinner-border spinner-border-sm" /> : <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>front_hand</span>}
+          {kicking
+            ? <span className="spinner-border spinner-border-sm" />
+            : <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>front_hand</span>}
           Expulsar (Kick)
         </button>
         <button
@@ -609,7 +729,9 @@ function DangerZone({ player, showAlert }) {
           className="btn flex-grow-1 py-2 d-flex align-items-center justify-content-center gap-2 fw-bold text-uppercase"
           style={{ backgroundColor: '#ffb4ab', color: '#690005', fontSize: '0.875rem', letterSpacing: '-0.025em', boxShadow: '0 0 20px -5px rgba(255,180,171,0.3)' }}
         >
-          {banning ? <span className="spinner-border spinner-border-sm" /> : <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>block</span>}
+          {banning
+            ? <span className="spinner-border spinner-border-sm" />
+            : <span className="material-symbols-outlined" style={{ fontSize: '0.875rem' }}>block</span>}
           Banear (Ban)
         </button>
       </div>
@@ -617,69 +739,108 @@ function DangerZone({ player, showAlert }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// --- Componente principal ---
+// Junta todos los subcomponentes y maneja la lista de jugadores
 export default function AdminDashboard() {
   const navigate = useNavigate();
+
+  // Estados generales
   const [loading, setLoading] = useState(true);
   const [serverStatus, setServerStatus] = useState({ status: 'offline', players: [], info: null });
   const [players, setPlayers] = useState([]);
-  const [searchResults, setSearchResults] = useState(null); // null = show all players
+  // Si hay resultados de busqueda los muestro; si es null muestro todos
+  const [searchResults, setSearchResults] = useState(null);
   const [nameFilter, setNameFilter] = useState('');
 
+  // Jugador seleccionado para editar
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
+  // Estado de la alerta flotante
   const [alert, setAlert] = useState({ show: false, message: '', type: 'success' });
   const [lastUpdated, setLastUpdated] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Muestra una alerta que desaparece a los 3.5 segundos
   const showAlert = useCallback((message, type = 'success') => {
     setAlert({ show: true, message, type });
-    setTimeout(() => setAlert({ show: false, message: '', type: 'success' }), 3500);
+    setTimeout(() => {
+      setAlert({ show: false, message: '', type: 'success' });
+    }, 3500);
   }, []);
 
+  // Carga los jugadores y el estado del servidor
+  // Si silent = true no muestra el spinner (usado en el auto-refresh)
   const fetchData = useCallback(async (silent = false) => {
-    if (!silent) setRefreshing(true);
+    if (!silent) {
+      setRefreshing(true);
+    }
+
     try {
+      // Pido las dos cosas en paralelo
       const [playersRes, statusRes] = await Promise.all([
         axios.get('/player-service/players', authHeader()).catch(() => ({ data: [] })),
         axios.get('/mgmt-service/server/status', authHeader()).catch(() => ({ data: { status: 'offline', players: [], info: null } })),
       ]);
+
       setPlayers(Array.isArray(playersRes.data) ? playersRes.data : []);
       setServerStatus(statusRes.data ?? { status: 'offline', players: [], info: null });
       setLastUpdated(new Date());
     } catch (err) {
+      // Si el token ha caducado, vuelvo al inicio
       if (err.response?.status === 401 || err.response?.status === 403) {
         localStorage.removeItem('jwt');
         navigate('/');
       }
     } finally {
       setLoading(false);
-      if (!silent) setRefreshing(false);
+      if (!silent) {
+        setRefreshing(false);
+      }
     }
   }, [navigate]);
 
-  // Carga inicial + polling cada 30 segundos
+  // Carga inicial + refresco automatico cada 30 segundos
   useEffect(() => {
     fetchData(false);
     const interval = setInterval(() => fetchData(true), 30000);
+    // Limpio el intervalo cuando se desmonta el componente
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const displayedPlayers = (searchResults ?? players).filter(p => {
+  // Calcula que jugadores mostrar: o los de la busqueda o todos
+  // Luego les aplica el filtro de nombre si lo hay
+  const fuente = searchResults ?? players;
+  const displayedPlayers = fuente.filter(p => {
     if (!nameFilter) return true;
-    const fullName = [p.firstname, p.lastname].filter(Boolean).join(' ').toLowerCase();
-    return fullName.includes(nameFilter.toLowerCase()) || p.identifier?.toLowerCase().includes(nameFilter.toLowerCase());
+
+    const filtroLower = nameFilter.toLowerCase();
+    const nombrePartes = [p.firstname, p.lastname].filter(Boolean);
+    const fullName = nombrePartes.join(' ').toLowerCase();
+
+    if (fullName.includes(filtroLower)) return true;
+    if (p.identifier?.toLowerCase().includes(filtroLower)) return true;
+    return false;
   });
 
+  // Datos del estado del servidor
   const isOnline = serverStatus.status === 'online';
   const onlineCount = Array.isArray(serverStatus.players) ? serverStatus.players.length : 0;
-  const maxClients = serverStatus.info?.vars?.sv_maxClients ?? serverStatus.info?.vars?.sv_maxclients ?? '??';
 
+  // Saca el numero maximo de clientes (puede venir con dos nombres distintos)
+  let maxClients = '??';
+  if (serverStatus.info?.vars?.sv_maxClients !== undefined) {
+    maxClients = serverStatus.info.vars.sv_maxClients;
+  } else if (serverStatus.info?.vars?.sv_maxclients !== undefined) {
+    maxClients = serverStatus.info.vars.sv_maxclients;
+  }
+
+  // Cierra sesion
   const handleLogout = () => {
     localStorage.removeItem('jwt');
     navigate('/');
   };
 
+  // Mientras carga muestro un spinner
   if (loading) {
     return (
       <div className="min-vh-100 d-flex justify-content-center align-items-center" style={{ backgroundColor: '#0a0f14' }}>
@@ -688,21 +849,29 @@ export default function AdminDashboard() {
     );
   }
 
+  // Calculo el porcentaje de jugadores online (para la barra de progreso)
+  let porcentajeOnline = 0;
+  if (typeof maxClients === 'number' && maxClients > 0) {
+    porcentajeOnline = Math.min((onlineCount / maxClients) * 100, 100);
+  }
+
   return (
     <div className="min-vh-100 d-flex flex-column" style={{ backgroundColor: '#0a0f14', color: '#dee3ea', fontFamily: "'Space Grotesk', sans-serif" }}>
 
-      {/* Floating Alert */}
+      {/* Alerta flotante */}
       {alert.show && (
         <div className="toast-alert">
           <div className={`alert alert-${alert.type} alert-dismissible fade show shadow-lg mb-0`} role="alert">
-            <strong>{alert.type === 'success' ? '✓ ' : alert.type === 'warning' ? '⚠ ' : '✗ '}</strong>
+            <strong>
+              {alert.type === 'success' ? '✓ ' : alert.type === 'warning' ? '⚠ ' : '✗ '}
+            </strong>
             {alert.message}
             <button type="button" className="btn-close" onClick={() => setAlert(a => ({ ...a, show: false }))} />
           </div>
         </div>
       )}
 
-      {/* TopNavBar */}
+      {/* Barra superior */}
       <header className="sticky-top shadow-sm site-header">
         <div className="container-fluid px-4 py-3 mx-auto" style={{ maxWidth: '1536px' }}>
           <div className="d-flex justify-content-between align-items-center">
@@ -722,15 +891,15 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      {/* Main */}
+      {/* Contenido principal */}
       <main className="flex-grow-1 w-100 pt-4 pb-5 px-3 px-md-4">
         <div className="container-fluid mx-auto p-0" style={{ maxWidth: '1536px' }}>
           <div className="row g-4" style={{ minHeight: 'calc(100vh - 140px)' }}>
 
-            {/* ── Left Column ── */}
+            {/* Columna izquierda */}
             <aside className="col-lg-4 col-xl-3 d-flex flex-column gap-3">
 
-              {/* Server Status */}
+              {/* Estado del servidor */}
               <div className="glass-panel p-4">
                 <div className="d-flex align-items-center justify-content-between mb-3">
                   <h2 className="text-secondary fw-semibold text-uppercase m-0" style={{ fontSize: '0.75rem', letterSpacing: '0.1em' }}>Estado del Servidor</h2>
@@ -758,7 +927,7 @@ export default function AdminDashboard() {
                   <span className="font-monospace fw-bold text-primary-custom">{onlineCount} / {maxClients}</span>
                 </div>
                 <div className="mt-2" style={{ height: '4px', borderRadius: '2px', backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                  <div style={{ height: '100%', borderRadius: '2px', width: `${typeof maxClients === 'number' ? Math.min((onlineCount / maxClients) * 100, 100) : 0}%`, background: 'linear-gradient(to right,#0356ff,#00d1ff)', transition: 'width 0.5s ease' }} />
+                  <div style={{ height: '100%', borderRadius: '2px', width: `${porcentajeOnline}%`, background: 'linear-gradient(to right,#0356ff,#00d1ff)', transition: 'width 0.5s ease' }} />
                 </div>
                 {lastUpdated && (
                   <div className="mt-2 text-end" style={{ fontSize: '0.6rem', color: '#3c494e' }}>
@@ -767,9 +936,9 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              {/* Search */}
+              {/* Buscador */}
               <div className="glass-panel p-4">
-                <h2 className="text-secondary fw-semibold text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '0.1em' }}>Motor de Búsqueda</h2>
+                <h2 className="text-secondary fw-semibold text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '0.1em' }}>Motor de Busqueda</h2>
                 <SearchPanel onResults={setSearchResults} showAlert={showAlert} />
                 {searchResults !== null && (
                   <button
@@ -777,16 +946,18 @@ export default function AdminDashboard() {
                     className="btn btn-sm mt-2 w-100"
                     style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.15)', fontSize: '0.75rem' }}
                   >
-                    ✕ Limpiar búsqueda — ver todos
+                    ✕ Limpiar busqueda - ver todos
                   </button>
                 )}
               </div>
 
-              {/* Player List */}
+              {/* Lista de jugadores */}
               <div className="glass-panel d-flex flex-column overflow-hidden flex-grow-1" style={{ minHeight: '300px' }}>
                 <div className="px-3 py-2 d-flex align-items-center justify-content-between" style={{ borderBottom: '1px solid rgba(60,73,78,0.2)' }}>
                   <span className="text-secondary text-uppercase fw-bold" style={{ fontSize: '0.7rem', letterSpacing: '0.1em' }}>
-                    {searchResults !== null ? `Resultados (${displayedPlayers.length})` : `Todos los jugadores (${players.length})`}
+                    {searchResults !== null
+                      ? `Resultados (${displayedPlayers.length})`
+                      : `Todos los jugadores (${players.length})`}
                   </span>
                   <input
                     className="form-control input-custom py-1"
@@ -797,26 +968,30 @@ export default function AdminDashboard() {
                   />
                 </div>
                 <div className="flex-grow-1 overflow-auto p-2 d-flex flex-column gap-1 custom-scrollbar">
-                  {displayedPlayers.length > 0 ? displayedPlayers.map((player, idx) => (
-                    <div
-                      key={player.identifier || idx}
-                      className={`player-item d-flex align-items-center justify-content-between px-3 py-2 ${selectedPlayer?.identifier === player.identifier ? 'active' : ''}`}
-                      onClick={() => setSelectedPlayer(player)}
-                    >
-                      <div className="d-flex align-items-center gap-2">
-                        <span className="font-monospace text-secondary" style={{ fontSize: '0.65rem', width: '28px' }}>#{idx + 1}</span>
-                        <div>
-                          <div className="fw-bold text-white" style={{ fontSize: '0.8rem' }}>
-                            {[player.firstname, player.lastname].filter(Boolean).join(' ') || player.identifier}
+                  {displayedPlayers.length > 0 ? displayedPlayers.map((player, idx) => {
+                    const nombrePartes = [player.firstname, player.lastname].filter(Boolean);
+                    const nombre = nombrePartes.length > 0 ? nombrePartes.join(' ') : player.identifier;
+                    const esSeleccionado = selectedPlayer?.identifier === player.identifier;
+
+                    return (
+                      <div
+                        key={player.identifier || idx}
+                        className={`player-item d-flex align-items-center justify-content-between px-3 py-2 ${esSeleccionado ? 'active' : ''}`}
+                        onClick={() => setSelectedPlayer(player)}
+                      >
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="font-monospace text-secondary" style={{ fontSize: '0.65rem', width: '28px' }}>#{idx + 1}</span>
+                          <div>
+                            <div className="fw-bold text-white" style={{ fontSize: '0.8rem' }}>{nombre}</div>
+                            {player.job && <div className="text-secondary" style={{ fontSize: '0.65rem' }}>{player.job}</div>}
                           </div>
-                          {player.job && <div className="text-secondary" style={{ fontSize: '0.65rem' }}>{player.job}</div>}
                         </div>
+                        {esSeleccionado && (
+                          <span className="material-symbols-outlined text-primary-custom" style={{ fontSize: '0.875rem' }}>chevron_right</span>
+                        )}
                       </div>
-                      {selectedPlayer?.identifier === player.identifier && (
-                        <span className="material-symbols-outlined text-primary-custom" style={{ fontSize: '0.875rem' }}>chevron_right</span>
-                      )}
-                    </div>
-                  )) : (
+                    );
+                  }) : (
                     <div className="text-center text-secondary small py-4">
                       {searchResults !== null ? 'Sin resultados' : 'No hay jugadores'}
                     </div>
@@ -825,11 +1000,11 @@ export default function AdminDashboard() {
               </div>
             </aside>
 
-            {/* ── Right Column ── */}
+            {/* Columna derecha: detalle del jugador seleccionado */}
             <section className="col-lg-8 col-xl-9">
               {selectedPlayer ? (
                 <div className="glass-panel d-flex flex-column overflow-hidden" style={{ minHeight: '100%' }}>
-                  {/* Header */}
+                  {/* Cabecera del jugador */}
                   <div className="p-4 d-flex flex-wrap justify-content-between align-items-start gap-3" style={{ borderBottom: '1px solid rgba(60,73,78,0.2)' }}>
                     <div>
                       <div className="d-flex align-items-center gap-2 mb-1">
@@ -861,7 +1036,7 @@ export default function AdminDashboard() {
                     </button>
                   </div>
 
-                  {/* Content */}
+                  {/* Contenido: todos los editores */}
                   <div className="flex-grow-1 overflow-auto p-4 custom-scrollbar">
                     <div className="d-flex flex-column gap-4">
                       <EconomyEditor
@@ -877,11 +1052,12 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ) : (
+                // Si no hay jugador seleccionado muestro un mensaje
                 <div className="glass-panel h-100 d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
                   <div className="text-center" style={{ color: '#3c494e' }}>
                     <span className="material-symbols-outlined d-block mb-3" style={{ fontSize: '4rem', opacity: 0.4 }}>manage_search</span>
                     <h4 className="fw-bold text-uppercase" style={{ letterSpacing: '0.1em' }}>Sin expediente cargado</h4>
-                    <p className="small">Selecciona un jugador de la lista o usa el motor de búsqueda.</p>
+                    <p className="small">Selecciona un jugador de la lista o usa el motor de busqueda.</p>
                   </div>
                 </div>
               )}
@@ -890,7 +1066,7 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      {/* Footer */}
+      {/* Pie de pagina */}
       <footer className="w-100 border-top mt-auto" style={{ backgroundColor: '#0a0f14', borderColor: 'rgba(60,73,78,0.1)' }}>
         <div className="container-fluid px-4 py-4 mx-auto" style={{ maxWidth: '1536px' }}>
           <div className="row g-2 align-items-center">
@@ -903,7 +1079,7 @@ export default function AdminDashboard() {
             <div className="col-md-4 d-flex flex-wrap justify-content-center justify-content-md-end gap-3">
               <a className="text-secondary text-decoration-none small" href="#">Discord</a>
               <a className="text-secondary text-decoration-none small" href="#">Reglas</a>
-              <a className="text-secondary text-decoration-none small" href="#">Términos</a>
+              <a className="text-secondary text-decoration-none small" href="#">Terminos</a>
             </div>
           </div>
         </div>

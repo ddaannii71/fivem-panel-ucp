@@ -10,56 +10,58 @@ import org.springframework.stereotype.Component;
 import java.security.Key;
 import java.util.Date;
 
+// Clase de utilidad para crear y validar tokens JWT
 @Component
 public class JwtUtil {
 
-    private static final long EXPIRATION_TIME = 86400000; // 24 horas
+    // El token va a durar 24 horas (en milisegundos)
+    private static final long EXPIRATION_TIME = 86400000;
 
+    // La clave secreta para firmar los tokens
     private final Key signingKey;
 
+    // Constructor: recoge la clave de application.properties
     public JwtUtil(@Value("${jwt.secret}") String secret) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    /**
-     * Genera un token JWT con el sujeto (license o discord:ID) y el rol del usuario.
-     */
+    // Crea un token JWT con el subject (la licencia o discord:ID) y el rol
     public String generateToken(String subject, String role) {
+        Date ahora = new Date();
+        Date expira = new Date(System.currentTimeMillis() + EXPIRATION_TIME);
+
         return Jwts.builder()
                 .setSubject(subject)
                 .claim("role", role)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .setIssuedAt(ahora)
+                .setExpiration(expira)
                 .signWith(signingKey)
                 .compact();
     }
 
-    /**
-     * Valida que el token sea legítimo y no haya caducado.
-     */
+    // Comprueba si un token es valido (firma correcta y no caducado)
     public boolean validateToken(String token) {
         try {
             extractAllClaims(token);
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
+        } catch (JwtException e) {
+            return false;
+        } catch (IllegalArgumentException e) {
             return false;
         }
     }
 
-    /**
-     * Extrae el sujeto del token (license o discord:ID).
-     */
+    // Saca el subject del token (la licencia)
     public String extractSubject(String token) {
         return extractAllClaims(token).getSubject();
     }
 
-    /**
-     * Extrae el rol del token (ADMIN, user, etc.).
-     */
+    // Saca el rol del token
     public String extractRole(String token) {
         return extractAllClaims(token).get("role", String.class);
     }
 
+    // Metodo privado que parsea el token y devuelve todos los claims
     private Claims extractAllClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(signingKey)

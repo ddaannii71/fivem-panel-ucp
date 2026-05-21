@@ -5,128 +5,255 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/**
- * Molde de la tabla "users" de ESX Legacy.
- * Mapeamos solo las columnas que necesita el panel UCP.
- */
+import java.time.LocalDateTime;
+
+// Entidad Player: representa un jugador de la tabla users de ESX Legacy
+// Solo mapeo las columnas que el panel UCP necesita, no todas
 @Entity
 @Table(name = "users")
 public class Player {
 
-    // --- Identificación ---
+    // El identifier es la primary key, ej: "license:abc123"
     @Id
     @Column(length = 60)
-    private String identifier; // ej: license:abc123
+    private String identifier;
 
+    // Nombre del personaje
     @Column(nullable = true, length = 16)
     private String firstname;
 
+    // Apellido del personaje
     @Column(nullable = true, length = 16)
     private String lastname;
 
+    // Grupo: admin, user, mod, etc.
+    // Va entre backticks porque "group" es palabra reservada de SQL
     @Column(name = "`group`", length = 50)
-    private String group; // admin, user, mod... (reservada en SQL, necesita backticks)
+    private String group;
 
-    // --- Trabajo ---
+    // Trabajo del jugador (police, ambulance, etc)
     @Column(nullable = true, length = 50)
     private String job;
 
+    // Rango dentro del trabajo
     @Column(name = "job_grade", nullable = true)
     private Integer jobGrade;
 
-    // --- Datos personales del personaje ---
+    // Fecha de nacimiento del personaje
     @Column(nullable = true, length = 10)
     private String dateofbirth;
 
+    // Sexo del personaje: "m" o "f"
     @Column(nullable = true, length = 1)
     private String sex;
 
+    // Altura del personaje
     @Column(nullable = true)
     private Integer height;
 
-    // --- Estado en el servidor ---
+    // Si esta muerto o no
     @Column(name = "is_dead", nullable = true)
     private Boolean isDead;
 
+    // Si esta deshabilitado
     @Column(nullable = true)
     private Boolean disabled;
 
+    // Numero de telefono in-game
     @Column(name = "phone_number", nullable = true, length = 20)
     private String phoneNumber;
 
-    // --- Economía (JSON de ESX) ---
+    // Cuentas del jugador en formato JSON: {"bank": 5000, "money": 200, "black_money": 0}
     @Column(columnDefinition = "LONGTEXT", nullable = true)
-    private String accounts; // {"bank": 5000, "money": 200, ...}
+    private String accounts;
 
-    // --- Inventario (JSON de ESX) ---
+    // Inventario del jugador en formato JSON
     @Column(columnDefinition = "LONGTEXT", nullable = true)
     private String inventory;
 
-    // --- Posición en el mundo (JSON de ESX) ---
+    // Posicion en el mundo en formato JSON: {"x":0.0,"y":0.0,"z":0.0,"heading":0.0}
     @Column(columnDefinition = "TEXT", nullable = true)
-    private String position; // {"x":0.0,"y":0.0,"z":0.0,"heading":0.0}
+    private String position;
 
-    // --- Timestamps ---
+    // Cuando se creo el personaje
     @Column(name = "created_at", nullable = true)
-    private java.time.LocalDateTime createdAt;
+    private LocalDateTime createdAt;
 
+    // Ultima vez que se conecto
     @Column(name = "last_seen", nullable = true)
-    private java.time.LocalDateTime lastSeen;
+    private LocalDateTime lastSeen;
 
-    // Constructor vacío obligatorio para JPA
+    // Constructor vacio para JPA
     public Player() {
     }
 
-    // --- GETTERS Y SETTERS ---
+    // Getter del identifier
+    public String getIdentifier() {
+        return identifier;
+    }
 
-    public String getIdentifier() { return identifier; }
-    public void setIdentifier(String identifier) { this.identifier = identifier; }
+    // Setter del identifier
+    public void setIdentifier(String identifier) {
+        this.identifier = identifier;
+    }
 
-    public String getFirstname() { return firstname; }
-    public void setFirstname(String firstname) { this.firstname = firstname; }
+    // Getter del nombre
+    public String getFirstname() {
+        return firstname;
+    }
 
-    public String getLastname() { return lastname; }
-    public void setLastname(String lastname) { this.lastname = lastname; }
+    // Setter del nombre
+    public void setFirstname(String firstname) {
+        this.firstname = firstname;
+    }
 
-    public String getGroup() { return group; }
-    public void setGroup(String group) { this.group = group; }
+    // Getter del apellido
+    public String getLastname() {
+        return lastname;
+    }
 
-    public String getJob() { return job; }
-    public void setJob(String job) { this.job = job; }
+    // Setter del apellido
+    public void setLastname(String lastname) {
+        this.lastname = lastname;
+    }
 
-    public Integer getJobGrade() { return jobGrade; }
-    public void setJobGrade(Integer jobGrade) { this.jobGrade = jobGrade; }
+    // Getter del grupo
+    public String getGroup() {
+        return group;
+    }
 
-    public String getDateofbirth() { return dateofbirth; }
-    public void setDateofbirth(String dateofbirth) { this.dateofbirth = dateofbirth; }
+    // Setter del grupo
+    public void setGroup(String group) {
+        this.group = group;
+    }
 
-    public String getSex() { return sex; }
-    public void setSex(String sex) { this.sex = sex; }
+    // Getter del trabajo
+    public String getJob() {
+        return job;
+    }
 
-    public Integer getHeight() { return height; }
-    public void setHeight(Integer height) { this.height = height; }
+    // Setter del trabajo
+    public void setJob(String job) {
+        this.job = job;
+    }
 
-    public Boolean getIsDead() { return isDead; }
-    public void setIsDead(Boolean isDead) { this.isDead = isDead; }
+    // Getter del rango de trabajo
+    public Integer getJobGrade() {
+        return jobGrade;
+    }
 
-    public Boolean getDisabled() { return disabled; }
-    public void setDisabled(Boolean disabled) { this.disabled = disabled; }
+    // Setter del rango de trabajo
+    public void setJobGrade(Integer jobGrade) {
+        this.jobGrade = jobGrade;
+    }
 
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+    // Getter de la fecha de nacimiento
+    public String getDateofbirth() {
+        return dateofbirth;
+    }
 
-    public String getAccounts() { return accounts; }
-    public void setAccounts(String accounts) { this.accounts = accounts; }
+    // Setter de la fecha de nacimiento
+    public void setDateofbirth(String dateofbirth) {
+        this.dateofbirth = dateofbirth;
+    }
 
-    public String getInventory() { return inventory; }
-    public void setInventory(String inventory) { this.inventory = inventory; }
+    // Getter del sexo
+    public String getSex() {
+        return sex;
+    }
 
-    public String getPosition() { return position; }
-    public void setPosition(String position) { this.position = position; }
+    // Setter del sexo
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
 
-    public java.time.LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(java.time.LocalDateTime createdAt) { this.createdAt = createdAt; }
+    // Getter de la altura
+    public Integer getHeight() {
+        return height;
+    }
 
-    public java.time.LocalDateTime getLastSeen() { return lastSeen; }
-    public void setLastSeen(java.time.LocalDateTime lastSeen) { this.lastSeen = lastSeen; }
+    // Setter de la altura
+    public void setHeight(Integer height) {
+        this.height = height;
+    }
+
+    // Getter del flag muerto
+    public Boolean getIsDead() {
+        return isDead;
+    }
+
+    // Setter del flag muerto
+    public void setIsDead(Boolean isDead) {
+        this.isDead = isDead;
+    }
+
+    // Getter del flag deshabilitado
+    public Boolean getDisabled() {
+        return disabled;
+    }
+
+    // Setter del flag deshabilitado
+    public void setDisabled(Boolean disabled) {
+        this.disabled = disabled;
+    }
+
+    // Getter del telefono
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    // Setter del telefono
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
+    // Getter del JSON de cuentas
+    public String getAccounts() {
+        return accounts;
+    }
+
+    // Setter del JSON de cuentas
+    public void setAccounts(String accounts) {
+        this.accounts = accounts;
+    }
+
+    // Getter del JSON de inventario
+    public String getInventory() {
+        return inventory;
+    }
+
+    // Setter del JSON de inventario
+    public void setInventory(String inventory) {
+        this.inventory = inventory;
+    }
+
+    // Getter del JSON de posicion
+    public String getPosition() {
+        return position;
+    }
+
+    // Setter del JSON de posicion
+    public void setPosition(String position) {
+        this.position = position;
+    }
+
+    // Getter de la fecha de creacion
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    // Setter de la fecha de creacion
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    // Getter de la ultima conexion
+    public LocalDateTime getLastSeen() {
+        return lastSeen;
+    }
+
+    // Setter de la ultima conexion
+    public void setLastSeen(LocalDateTime lastSeen) {
+        this.lastSeen = lastSeen;
+    }
 }
