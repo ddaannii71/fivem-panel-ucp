@@ -133,6 +133,6 @@ public class SecurityConfig {
         log.info("Login Discord OK - discordId={} identifier={} role={}", discordId, dbIdentifier, role);
 
         // Redirijo al frontend pasando el token por la URL
-        response.sendRedirect(FRONTEND_URL + "/login?token=" + token);
+        response.sendRedirect(FRONTEND_URL + "/oauth2/redirect?token=" + token);
     }
 }

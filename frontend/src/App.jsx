@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import Dashboard from './pages/Dashboard'
 import AdminDashboard from './pages/AdminDashboard'
+import OAuth2RedirectHandler from './auth/OAuth2RedirectHandler'
 import { PrivateRoute, AdminRoute } from './auth/Guards'
 
 // Componente principal con las rutas
@@ -14,6 +15,7 @@ export default function App() {
         {/* Rutas que cualquiera puede ver */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
+        <Route path="/oauth2/redirect" element={<OAuth2RedirectHandler />} />
 
         {/* Ruta protegida: hace falta estar logueado */}
         <Route
