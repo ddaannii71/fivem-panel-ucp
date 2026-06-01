@@ -20,33 +20,32 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-// Servicio con la logica de modificacion de jugadores
-// Aqui esta el "trabajo de verdad" para editar economia, inventario, etc.
+// Servicio principal de logica de negocio del Player Service.
+// Gestiona la modificacion de economia, inventario, posicion y vehiculos
+// de los jugadores directamente sobre la base de datos del servidor FiveM.
 @Service
 public class PlayerService {
 
-    // Repositorio de jugadores
     @Autowired
     private PlayerRepository playerRepository;
 
-    // Repositorio de vehiculos
     @Autowired
     private OwnedVehicleRepository ownedVehicleRepository;
 
-    // Para parsear y escribir JSON
     @Autowired
     private ObjectMapper objectMapper;
 
-    // Modifica el dinero del jugador (efectivo, banco y dinero sucio)
-    // Solo cambia los campos que vengan en el request, los demas se quedan igual
+    // El metodo actualiza el saldo economico del jugador identificado por su identifier de ESX.
+    // En ESX Legacy, los datos de economia se almacenan como una cadena JSON dentro de una columna
+    // VARCHAR de la tabla users. El metodo deserializa ese JSON, sobreescribe unicamente los campos
+    // que hayan llegado en la peticion (dinero en mano, banco o dinero negro) y serializa
+    // el resultado de vuelta antes de persistirlo en la base de datos.
     @Transactional
     public Player updateEconomy(String identifier, EconomyUpdateRequest req) {
-        // Busco el jugador, si no existe lanzo excepcion
         Player player = playerRepository.findById(identifier)
                 .orElseThrow(() -> new PlayerNotFoundException(identifier));
 
         try {
-            // Cojo el JSON actual de accounts
             String raw = player.getAccounts();
             ObjectNode node;
             if (raw != null && !raw.isBlank()) {
@@ -55,7 +54,6 @@ public class PlayerService {
                 node = objectMapper.createObjectNode();
             }
 
-            // Voy actualizando solo los campos que llegaron
             if (req.getMoney() != null) {
                 node.put("money", req.getMoney());
             }
@@ -66,32 +64,31 @@ public class PlayerService {
                 node.put("black_money", req.getBlack_money());
             }
 
-            // Vuelvo a guardar el JSON como String en el jugador
             player.setAccounts(objectMapper.writeValueAsString(node));
         } catch (Exception e) {
             throw new RuntimeException("Error al procesar accounts de " + identifier, e);
         }
 
-        // Guardo en la BD y devuelvo el jugador actualizado
         return playerRepository.save(player);
     }
 
-    // Sobrescribe el inventario completo del jugador
+    // El metodo reemplaza por completo el inventario del jugador con la lista de items recibida.
+    // Construye un nuevo array JSON desde cero: por cada item de la lista genera un nodo
+    // con su nombre, cantidad y slot. Si el item no especifica slot, el metodo le asigna
+    // uno automatico basado en su posicion en la lista. El array resultante se serializa
+    // y se almacena en el campo inventory de la tabla users de ESX.
     @Transactional
     public Player updateInventory(String identifier, List<InventoryItemDTO> items) {
         Player player = playerRepository.findById(identifier)
                 .orElseThrow(() -> new PlayerNotFoundException(identifier));
 
         try {
-            // Creo un array JSON nuevo desde cero
             ArrayNode arrayNode = objectMapper.createArrayNode();
 
-            // Recorro la lista de items que me llego y los meto en el array
             for (int i = 0; i < items.size(); i++) {
                 InventoryItemDTO item = items.get(i);
                 ObjectNode itemNode = objectMapper.createObjectNode();
 
-                // Si el item no trae slot, le pongo uno automatico
                 int slot;
                 if (item.getSlot() != null) {
                     slot = item.getSlot();
@@ -113,7 +110,11 @@ public class PlayerService {
         return playerRepository.save(player);
     }
 
-    // Anade un item al inventario o le suma cantidad si ya estaba
+    // El metodo anade un item al inventario del jugador o incrementa su cantidad si ya existe.
+    // Primero recorre el array JSON del inventario buscando un nodo cuyo campo name coincida
+    // con el item solicitado. Si lo encuentra, suma la cantidad indicada al valor actual.
+    // Si no existe ningun nodo con ese nombre, calcula el slot mas alto ocupado en el inventario
+    // y crea un nuevo nodo en el slot siguiente, evitando colisiones con items ya existentes.
     @Transactional
     public Player addInventoryItem(String identifier, String itemName, int count) {
         Player player = playerRepository.findById(identifier)
@@ -128,11 +129,9 @@ public class PlayerService {
                 arrayNode = objectMapper.createArrayNode();
             }
 
-            // Busco si ya tiene ese item
             boolean encontrado = false;
             for (JsonNode node : arrayNode) {
                 if (node.path("name").asText().equals(itemName)) {
-                    // Si lo tiene, le sumo la cantidad
                     int actual = node.path("count").asInt();
                     ((ObjectNode) node).put("count", actual + count);
                     encontrado = true;
@@ -140,9 +139,7 @@ public class PlayerService {
                 }
             }
 
-            // Si no lo tenia, le anado uno nuevo en el siguiente slot libre
             if (!encontrado) {
-                // Calculo cual es el slot mas alto usado
                 int maxSlot = 0;
                 for (JsonNode node : arrayNode) {
                     int s = node.path("slot").asInt(0);
@@ -166,7 +163,10 @@ public class PlayerService {
         return playerRepository.save(player);
     }
 
-    // Quita un item del inventario por su nombre
+    // El metodo elimina un item del inventario del jugador buscandolo por su nombre.
+    // Recorre el array JSON del inventario y construye uno nuevo excluyendo cualquier nodo
+    // cuyo campo name coincida con el nombre recibido. El array filtrado se serializa
+    // y se persiste en la base de datos, dejando el resto del inventario intacto.
     @Transactional
     public Player removeInventoryItem(String identifier, String itemName) {
         Player player = playerRepository.findById(identifier)
@@ -181,7 +181,6 @@ public class PlayerService {
                 arrayNode = objectMapper.createArrayNode();
             }
 
-            // Creo un array nuevo sin el item que quiero quitar
             ArrayNode updated = objectMapper.createArrayNode();
             for (JsonNode node : arrayNode) {
                 if (!node.path("name").asText().equals(itemName)) {
@@ -197,7 +196,12 @@ public class PlayerService {
         return playerRepository.save(player);
     }
 
-    // Cambia la posicion del jugador (teletransporte)
+    // El metodo modifica las coordenadas de spawn del jugador en el mundo de GTA V,
+    // lo que en el contexto del panel equivale a un teletransporte administrativo.
+    // En ESX, la posicion se guarda como un objeto JSON con los campos x, y, z y heading.
+    // El metodo deserializa ese objeto, actualiza solo las coordenadas presentes en la
+    // peticion y vuelve a serializar el resultado antes de guardarlo en la base de datos.
+    // El cambio tiene efecto la proxima vez que el jugador cargue el personaje en el servidor.
     @Transactional
     public Player updatePosition(String identifier, PositionUpdateRequest req) {
         Player player = playerRepository.findById(identifier)
@@ -212,7 +216,6 @@ public class PlayerService {
                 node = objectMapper.createObjectNode();
             }
 
-            // Solo actualizo las coordenadas que vinieron en el request
             if (req.getX() != null) {
                 node.put("x", req.getX());
             }
@@ -234,25 +237,26 @@ public class PlayerService {
         return playerRepository.save(player);
     }
 
-    // Cambia el estado de un vehiculo (si esta en garaje o fuera)
+    // El metodo actualiza el estado de un vehiculo concreto perteneciente a un jugador.
+    // Primero verifica que el jugador existe en la base de datos y despues localiza el
+    // vehiculo por su matricula en la tabla owned_vehicles. Antes de aplicar ningun cambio
+    // comprueba que el propietario registrado en el vehiculo coincide con el identifier
+    // recibido, evitando que un administrador modifique por error un vehiculo de otro jugador.
+    // Los campos actualizables son el estado de garaje (stored) y la ubicacion de aparcamiento.
     @Transactional
     public OwnedVehicle updateVehicle(String identifier, String plate, VehicleUpdateRequest req) {
-        // Compruebo que el jugador existe
         if (!playerRepository.existsById(identifier)) {
             throw new PlayerNotFoundException(identifier);
         }
 
-        // Busco el vehiculo por matricula
         OwnedVehicle vehicle = ownedVehicleRepository.findById(plate)
                 .orElseThrow(() -> new VehicleNotFoundException(plate));
 
-        // Compruebo que el vehiculo le pertenece a ese jugador
         if (!vehicle.getOwner().equals(identifier)) {
             throw new VehicleNotFoundException(
                     "La matricula " + plate + " no pertenece al jugador " + identifier);
         }
 
-        // Actualizo los campos que vengan en el request
         if (req.getStored() != null) {
             vehicle.setStored(req.getStored());
         }

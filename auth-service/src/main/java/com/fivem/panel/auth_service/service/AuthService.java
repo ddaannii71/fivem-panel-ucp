@@ -11,43 +11,42 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-// Servicio de autenticacion: aqui esta la logica del login
+// Servicio principal de autenticacion. Contiene la logica de negocio del login tradicional.
 @Service
 public class AuthService {
 
-    // El repositorio de usuarios para buscar en la BD
     @Autowired
     private UserRepository userRepository;
 
-    // La utilidad para generar tokens JWT
     @Autowired
     private JwtUtil jwtUtil;
 
-    // Hace el login del usuario
-    // Devuelve el token y el rol si todo va bien, o un error si algo falla
+    // El metodo recibe el identificador de ESX y la contrasena web del jugador.
+    // Primero verifica que el usuario existe en la base de datos del servidor FiveM.
+    // A continuacion comprueba que la contrasena coincide y que el jugador
+    // pertenece al grupo admin o superadmin, ya que el resto de jugadores
+    // no tienen permiso para acceder al panel de control.
+    // Si todas las validaciones son correctas, genera un token JWT firmado
+    // que incluye el identificador y el rol del usuario, y lo devuelve junto
+    // con el nombre del grupo para que el frontend pueda redirigir al panel correcto.
     public ResponseEntity<Map<String, Object>> login(String identifier, String password) {
         try {
-            // Busco al usuario por su identificador en la base de datos
             Optional<User> userOptional = userRepository.findByIdentifier(identifier);
 
-            // Si no existe devuelvo 404
             if (userOptional.isEmpty()) {
                 Map<String, Object> error = new HashMap<>();
                 error.put("error", "Usuario no encontrado");
                 return ResponseEntity.status(404).body(error);
             }
 
-            // Saco el usuario del Optional
             User user = userOptional.get();
 
-            // Compruebo si la contrasena coincide
             if (!password.equals(user.getWebPassword())) {
                 Map<String, Object> error = new HashMap<>();
                 error.put("error", "Contrasena incorrecta");
                 return ResponseEntity.status(401).body(error);
             }
 
-            // Compruebo que el usuario sea admin o superadmin (los demas no pueden entrar al panel)
             String grupo = user.getGroup();
             boolean esAdmin = "admin".equalsIgnoreCase(grupo) || "superadmin".equalsIgnoreCase(grupo);
             if (!esAdmin) {
@@ -56,7 +55,6 @@ public class AuthService {
                 return ResponseEntity.status(403).body(error);
             }
 
-            // Si todo va bien genero el token JWT y lo devuelvo junto con el rol
             String token = jwtUtil.generateToken(user.getIdentifier(), user.getGroup());
             Map<String, Object> ok = new HashMap<>();
             ok.put("token", token);
@@ -64,7 +62,6 @@ public class AuthService {
             return ResponseEntity.ok(ok);
 
         } catch (Exception e) {
-            // Si algo se rompe lo lanzo como excepcion para que lo coja el manejador global
             throw new RuntimeException("Error durante el proceso de login", e);
         }
     }
